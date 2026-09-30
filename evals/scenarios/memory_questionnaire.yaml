@@ -1,0 +1,64 @@
+name: memory_questionnaire
+tags:
+- memory
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: Can we set up my profile?
+  expect:
+    calls:
+    - next_question
+    not_calls:
+    - remember
+    - answer_question
+    args:
+      next_question:
+        file: user
+    reply:
+      contains_any:
+      - call you
+      - your name
+- say: Tony.
+  # Outcome only: qwen3:8b saves the answer with remember and Gemini with answer_question; both results carry the
+  # next question, and the reply must ask it rather than invent one.
+  expect:
+    not_calls:
+    - remember:
+        section:
+          matches: ^(?!name$)
+    reply:
+      contains_any:
+      - birthday
+tool_results:
+  next_question:
+  - result:
+      status: question
+      section: Name
+      ask: What would you like me to call you?
+      replace: true
+      remaining: 7
+  answer_question:
+  - result:
+      saved:
+        status: saved
+        file: USER.md
+        section: Name
+      status: question
+      section: Birthday
+      ask: When's your birthday?
+      replace: true
+      remaining: 6
+  remember:
+  - result:
+      status: saved
+      file: USER.md
+      section: Name
+      questionnaire:
+        status: question
+        section: Birthday
+        ask: When's your birthday?
+        replace: true
+        remaining: 6
+        note: if you are going through their profile questions, ask this one next

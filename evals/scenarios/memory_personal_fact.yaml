@@ -1,0 +1,35 @@
+name: memory_personal_fact
+tags:
+- memory
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: My favourite band is Radiohead.
+  expect:
+    route: tools
+    calls:
+    - remember
+    args:
+      remember:
+        file: user
+        section:
+          matches: music
+        note:
+          contains:
+          - radiohead
+tool_results:
+  remember:
+  - when:
+      file: user
+    result:
+      status: saved
+      file: USER.md
+      section: (as asked)
+  - when:
+      file: soul
+    result:
+      status: saved
+      file: SOUL.md
+      section: (as asked)

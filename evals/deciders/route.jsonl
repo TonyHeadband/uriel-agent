@@ -1,0 +1,44 @@
+{"id": "small_talk_greeting", "source": "scenario:small_talk", "context": "Good morning! How are you?", "expected": "direct", "expected_category": "none"}
+{"id": "small_talk_bye", "source": "scenario:small_talk", "context": "Assistant: Good morning! I'm doing well, thanks for asking. How can I help today?\nUser: Thanks, have a nice day!", "expected": "direct", "expected_category": "none"}
+{"id": "general_egg", "source": "scenario:general_knowledge", "context": "How long should I boil an egg for a runny yolk?", "expected": "direct", "expected_category": "none"}
+{"id": "general_capital", "source": "hand", "context": "What's the capital of Australia?", "expected": "direct", "expected_category": "none"}
+{"id": "general_joke", "source": "hand", "context": "Tell me a joke about cats.", "expected": "direct", "expected_category": "none"}
+{"id": "general_translate", "source": "hand", "context": "How do you say 'good night' in Italian?", "expected": "direct", "expected_category": "none"}
+{"id": "general_recipe", "source": "hand", "context": "Give me a quick recipe for pancakes.", "expected": "direct", "expected_category": "none"}
+{"id": "general_math", "source": "hand", "context": "What's 15% of 80?", "expected": "direct", "expected_category": "none"}
+{"id": "chitchat_thanks", "source": "hand", "context": "Assistant: The router is up and all pods are running.\nUser: Great, thanks!", "expected": "direct", "expected_category": "none"}
+{"id": "chitchat_bored", "source": "hand", "context": "I'm bored, talk to me about space.", "expected": "direct", "expected_category": "none"}
+{"id": "homelab_status", "source": "spec:m1", "context": "How is the homelab doing?", "expected": "tools", "expected_category": "homelab"}
+{"id": "homelab_servers", "source": "rubric", "context": "Are the servers ok? Jellyfin feels slow.", "expected": "tools", "expected_category": "homelab"}
+{"id": "door_camera", "source": "rubric", "context": "Who was at the door earlier?", "expected": "tools", "expected_category": "camera"}
+{"id": "doc_school_trip", "source": "scenario:report_bug_grounded", "context": "What date does the school trip form say the trip is on?", "expected": "tools", "expected_category": "documents"}
+{"id": "doc_do_i_have", "source": "rubric", "context": "Do I have the car insurance certificate somewhere?", "expected": "tools", "expected_category": "documents"}
+{"id": "doc_what_does_say", "source": "rubric", "context": "What does the rental contract say about pets?", "expected": "tools", "expected_category": "documents"}
+{"id": "doc_bill", "source": "rubric", "context": "How much was the last electricity bill?", "expected": "tools", "expected_category": "documents"}
+{"id": "doc_fill", "source": "rubric", "context": "Can you fill in the school questionnaire with Luca's details?", "expected": "tools", "expected_category": "documents"}
+{"id": "doc_sign", "source": "rubric", "context": "Please sign the permission slip for me.", "expected": "tools", "expected_category": "documents"}
+{"id": "doc_sign_box_answer", "source": "rubric", "context": "Assistant: I found two signature boxes on the form: one for the mother and one for the father. Which one should I sign?\nUser: the father one", "expected": "tools", "expected_category": "documents"}
+{"id": "memory_band", "source": "scenario:memory_personal_fact", "context": "My favourite band is Radiohead.", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_sister", "source": "scenario:memory_family_fact", "context": "My sister loves jazz, she plays the saxophone.", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_what_music", "source": "scenario:memory_uses_what_it_knows", "context": "What kind of music do I like?", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_forget_birthday", "source": "scenario:memory_forget_birthday", "context": "Forget my birthday.", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_call_me_sir", "source": "scenario:memory_call_me_sir", "context": "From now on, call me Sir.", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_call_me_toni", "source": "probe:graph.py DIRECT_NOTE", "context": "call me Toni", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_birthday_fact", "source": "rubric", "context": "My birthday is on the 8th of April.", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_profile_setup", "source": "scenario:memory_questionnaire", "context": "Can we set up my profile?", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_profile_answer_name", "source": "scenario:memory_questionnaire", "context": "Assistant: Let's set up your profile. First, what should I call you?\nUser: Tony.", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_profile_answer_date", "source": "probe:graph.py route_context", "context": "Assistant: Nice to meet you, Tony! When is your birthday?\nUser: 8 april 1992", "expected": "tools", "expected_category": "memory"}
+{"id": "memory_show_profile", "source": "rubric", "context": "What do you know about me?", "expected": "tools", "expected_category": "memory"}
+{"id": "style_jarvis", "source": "scenario:memory_talk_like_character", "context": "Talk to me like Jarvis from Iron Man.", "expected": "tools", "expected_category": "memory"}
+{"id": "style_pirate", "source": "scenario:memory_style_by_example", "context": "Talk to me like a pirate from now on.", "expected": "tools", "expected_category": "memory"}
+{"id": "style_shorter", "source": "rubric", "context": "Be shorter with me, I don't need long answers.", "expected": "tools", "expected_category": "memory"}
+{"id": "style_language", "source": "rubric", "context": "From now on answer me in Italian.", "expected": "tools", "expected_category": "memory"}
+{"id": "report_feature", "source": "scenario:feature_request", "context": "I wish Uriel could remind me about bills a week before they are due. Can you ask Anthony to add that?", "expected": "tools", "expected_category": "reporting"}
+{"id": "report_feature_confirm", "source": "scenario:feature_request", "context": "Assistant: Here's the report I'd send to Anthony: \"Feature request: bill reminders a week before the due date.\" Shall I send it?\nUser: Yes, send it.", "expected": "tools", "expected_category": "reporting"}
+{"id": "report_search_unavailable", "source": "scenario:report_bug_explicit", "context": "The document search keeps saying it is unavailable. Can you let Anthony know?", "expected": "tools", "expected_category": "reporting"}
+{"id": "report_slow", "source": "probe:decider.py 2026-09-29", "context": "Uriel is slow, please tell Anthony", "expected": "tools", "expected_category": "reporting"}
+{"id": "report_slow_all_day", "source": "scenario:report_declined", "context": "Uriel has been really slow all day. Please tell Anthony.", "expected": "tools", "expected_category": "reporting"}
+{"id": "report_wrong_box", "source": "scenario:report_bug_grounded", "context": "Uriel put my signature in the wrong box on the school form, it signed where the father should sign. Please tell Anthony.", "expected": "tools", "expected_category": "reporting"}
+{"id": "general_about_radiohead", "source": "hand", "context": "When did Radiohead release OK Computer?", "expected": "direct", "expected_category": "none"}
+{"id": "general_what_is_jazz", "source": "hand", "context": "What's the difference between bebop and swing?", "expected": "direct", "expected_category": "none"}
+{"id": "general_how_insurance", "source": "hand", "context": "In general, how does car insurance work in Italy?", "expected": "direct", "expected_category": "none"}

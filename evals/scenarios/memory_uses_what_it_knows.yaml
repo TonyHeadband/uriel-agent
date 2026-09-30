@@ -1,0 +1,55 @@
+name: memory_uses_what_it_knows
+tags:
+- memory
+user:
+  name: kid
+  groups:
+  - family
+memory:
+  user: '# About Sir
+
+
+    ## Name
+
+    - Sir
+
+
+    ## Birthday
+
+    - 12 March
+
+
+    ## Music
+
+    - Jazz'
+turns:
+- say: What kind of music do I like?
+  expect:
+    not_calls:
+    - remember
+    - forget
+    reply:
+      contains:
+      - jazz
+tool_results:
+  show_memory:
+  - when:
+      file: user
+    result:
+      file: USER.md
+      markdown: '# About Sir
+
+
+        ## Name
+
+        - Sir
+
+
+        ## Birthday
+
+        - 12 March
+
+
+        ## Music
+
+        - Jazz'

@@ -1,0 +1,15 @@
+name: small_talk
+tags:
+- routing
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: Good morning! How are you?
+  expect:
+    route: direct
+    no_calls: true
+- say: Thanks, have a nice day!
+  expect:
+    no_calls: true

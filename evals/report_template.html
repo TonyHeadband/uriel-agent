@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uriel tool evals</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --border: #e2e1dc;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #75746f;
+  --good: #0ca30c;
+  --critical: #d03b3b;
+  --good-text: #006300;
+  --critical-text: #b02a2a;
+  --focus: #2a78d6;
+  /* Sequential blue, near-zero first: in dark mode the low end recedes toward the dark surface. */
+  --seq-0: #cde2fb; --seq-1: #9ec5f4; --seq-2: #6da7ec; --seq-3: #3987e5; --seq-4: #256abf; --seq-5: #104281;
+  --seq-ink-light: #0b0b0b; --seq-ink-dark: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --border: #33332f;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+    --good-text: #4cc94c; --critical-text: #f08080; --focus: #3987e5;
+    --seq-0: #104281; --seq-1: #184f95; --seq-2: #256abf; --seq-3: #3987e5; --seq-4: #6da7ec; --seq-5: #b7d3f6;
+    --seq-ink-light: #ffffff; --seq-ink-dark: #0b0b0b;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --border: #33332f;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #9a998f;
+  --good-text: #4cc94c; --critical-text: #f08080; --focus: #3987e5;
+  --seq-0: #104281; --seq-1: #184f95; --seq-2: #256abf; --seq-3: #3987e5; --seq-4: #6da7ec; --seq-5: #b7d3f6;
+  --seq-ink-light: #ffffff; --seq-ink-dark: #0b0b0b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 0 0 12px; }
+.sub { color: var(--text-secondary); margin: 0 0 20px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+.controls label { color: var(--text-secondary); display: flex; gap: 6px; align-items: center; }
+select { font: inherit; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+.tile .k { color: var(--text-secondary); font-size: 12px; }
+.tile .v { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile .d { font-size: 12px; color: var(--text-muted); }
+.up { color: var(--good-text); } .down { color: var(--critical-text); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
+td.num, th.num { text-align: right; }
+.heat { width: auto; }
+.heat td.cell { padding: 2px; border: none; width: 96px; }
+.heat .swatch {
+  display: block; min-width: 56px; height: 30px; border-radius: 4px; border: 0; width: 100%;
+  font: inherit; font-size: 12px; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.heat .swatch:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.heat .swatch.sel { box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--text-primary); }
+.heat .none { color: var(--text-muted); text-align: center; font-size: 12px; }
+.heat th.col { font-size: 11px; text-align: center; }
+.heat th.col button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+.heat th.col button.sel { color: var(--text-primary); font-weight: 600; text-decoration: underline; }
+.legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text-secondary); font-size: 12px; }
+.legend .ramp { display: flex; gap: 2px; }
+.legend .ramp span { width: 28px; height: 10px; border-radius: 2px; }
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; }
+.badge.ok::before { background: var(--good); }
+.badge.bad::before { background: var(--critical); }
+.badge.ok { color: var(--good-text); } .badge.bad { color: var(--critical-text); }
+details { border-top: 1px solid var(--border); padding: 8px 0; }
+summary { cursor: pointer; }
+.turn { margin: 10px 0 0 12px; padding-left: 12px; border-left: 2px solid var(--border); }
+.turn .say { font-weight: 600; }
+.turn .meta { color: var(--text-secondary); font-size: 12px; }
+.turn pre { white-space: pre-wrap; word-break: break-word; background: var(--surface-0); border-radius: 6px; padding: 8px; margin: 6px 0; font-size: 12px; }
+.fail { color: var(--critical-text); }
+.muted { color: var(--text-muted); }
+#tip {
+  position: fixed; pointer-events: none; z-index: 10; display: none; max-width: 280px;
+  background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+}
+@media (max-width: 640px) { .tile .v { font-size: 22px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Uriel tool evals</h1>
+  <p class="sub">How often the agent picks the right tool, fills its arguments honestly and replies without false claims. Each cell is one scenario in one result file.</p>
+
+  <div class="controls">
+    <label>Run <select id="pick"></select></label>
+    <label>Compare with <select id="base"></select></label>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card">
+    <h2>Pass rate by scenario, over time</h2>
+    <div class="scroll"><table class="heat" id="heat"></table></div>
+    <div class="legend"><span>0%</span><span class="ramp" id="ramp"></span><span>100% of runs passed</span></div>
+  </section>
+
+  <section class="card">
+    <h2 id="tableTitle">Selected run</h2>
+    <div class="scroll"><table id="table"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Failing runs</h2>
+    <div id="failures"></div>
+  </section>
+</main>
+<div id="tip" role="tooltip"></div>
+<script>
+const DATA = /*REPORT_DATA*/null;
+const files = DATA.files;
+const CATS = ["route", "calls", "args", "reply"];
+const STEPS = 6;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function frac(cell) {
+  if (!cell || cell === "-") return null;
+  const [a, b] = cell.split("/").map(Number);
+  return b ? a / b : null;
+}
+function stamp(id) {
+  const m = id.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
+  return m ? `${m[2]}-${m[3]} ${m[4]}:${m[5]}` : id;
+}
+function name(file) { return stamp(file.id) + (file.label ? ` · ${file.label}` : ""); }
+function step(f) { return Math.min(STEPS - 1, Math.floor(f * STEPS)); }
+function overall(file) {
+  const runs = file.runs.length;
+  return runs ? file.runs.filter((r) => r.passed).length / runs : null;
+}
+function median(xs) { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : null; }
+function pct(f) { return f == null ? "–" : `${Math.round(f * 100)}%`; }
+function delta(now, before, unit = "pts", invert = false) {
+  if (now == null || before == null) return "";
+  const d = Math.round((now - before) * (unit === "pts" ? 100 : 10)) / (unit === "pts" ? 1 : 10);
+  if (d === 0) return `<span class="muted">no change</span>`;
+  const good = invert ? d < 0 : d > 0;
+  return `<span class="${good ? "up" : "down"}">${good ? "▲" : "▼"} ${Math.abs(d)}${unit === "pts" ? " pts" : " s"}</span>`;
+}
+
+let sel = files.length - 1;
+let base = files.length - 2;
+
+function selects() {
+  const opts = files.map((f, i) => `<option value="${i}">${esc(name(f))} · ${f.runs.length} runs</option>`).join("");
+  $("pick").innerHTML = opts;
+  $("base").innerHTML = `<option value="-1">nothing</option>` + opts;
+  $("pick").value = sel;
+  $("base").value = base;
+}
+
+function tiles() {
+  const f = files[sel], b = files[base];
+  const secs = f.runs.flatMap((r) => r.turns.map((t) => t.seconds));
+  const bsecs = b ? b.runs.flatMap((r) => r.turns.map((t) => t.seconds)) : [];
+  const errors = f.runs.filter((r) => r.turns.some((t) => t.error)).length;
+  const failed = f.runs.filter((r) => !r.passed).length;
+  $("tiles").innerHTML = [
+    ["Runs passed", pct(overall(f)), b ? delta(overall(f), overall(b)) + " vs compare" : `${f.runs.length} runs`],
+    ["Failing runs", String(failed), `of ${f.runs.length}`],
+    ["Median turn time", `${(median(secs) ?? 0).toFixed(1)} s`, b ? delta(median(secs), median(bsecs), "s", true) + " vs compare" : ""],
+    ["Runs with errors", String(errors), "timeouts or crashes"],
+  ].map(([k, v, d]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
+}
+
+function heat() {
+  const scenarios = [...new Set(files.flatMap((f) => f.rows.map((r) => r.scenario)))].sort();
+  const head = `<tr><th>Scenario</th>${files.map((f, i) =>
+    `<th class="col"><button data-file="${i}" class="${i === sel ? "sel" : ""}" aria-pressed="${i === sel}">${esc(stamp(f.id))}${f.label ? `<br><span class="muted">${esc(f.label)}</span>` : ""}</button></th>`).join("")}</tr>`;
+  const body = scenarios.map((scn) => `<tr><th scope="row">${esc(scn)}</th>${files.map((f, i) => {
+    const row = f.rows.find((r) => r.scenario === scn);
+    const v = row ? frac(row.pass) : null;
+    if (v == null) return `<td class="cell none">–</td>`;
+    const s = step(v);
+    const ink = s >= 3 ? "var(--seq-ink-dark)" : "var(--seq-ink-light)";
+    return `<td class="cell"><button class="swatch ${i === sel ? "sel" : ""}" data-file="${i}" data-scn="${esc(scn)}"
+      style="background:var(--seq-${s});color:${ink}" aria-label="${esc(scn)}, ${esc(name(f))}: ${row.pass} passed">${row.pass}</button></td>`;
+  }).join("")}</tr>`).join("");
+  $("heat").innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
+  $("ramp").innerHTML = Array.from({ length: STEPS }, (_, i) => `<span style="background:var(--seq-${i})"></span>`).join("");
+}
+
+function table() {
+  const f = files[sel], b = files[base];
+  $("tableTitle").textContent = `Selected run · ${name(f)}` + (b ? ` · compared with ${name(b)}` : "");
+  const head = `<tr><th>Scenario</th><th>Result</th><th class="num">Passed</th>${CATS.map((c) => `<th class="num">${c}</th>`).join("")}<th class="num">p50 turn</th><th class="num">vs compare</th></tr>`;
+  const body = f.rows.map((r) => {
+    const v = frac(r.pass);
+    const was = b ? frac((b.rows.find((x) => x.scenario === r.scenario) || {}).pass) : null;
+    const badge = v === 1 ? `<span class="badge ok">all passed</span>` : `<span class="badge bad">${v === 0 ? "all failed" : "some failed"}</span>`;
+    return `<tr><td>${esc(r.scenario)}</td><td>${badge}</td><td class="num">${r.pass}</td>${CATS.map((c) => `<td class="num">${r[c]}</td>`).join("")}
+      <td class="num">${r.p50_s == null ? "–" : r.p50_s.toFixed(1) + " s"}</td><td class="num">${b ? delta(v, was) || '<span class="muted">new</span>' : ""}</td></tr>`;
+  }).join("");
+  $("table").innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
+}
+
+function turnHtml(t, i, failedTurns) {
+  const calls = t.calls.length
+    ? t.calls.map((c) => `<pre>${esc(c.name)} ${esc(JSON.stringify(c.args, null, 2))}</pre>`).join("")
+    : `<div class="meta">no tool calls</div>`;
+  const fails = (failedTurns[i] || []).map((f) => `<div class="fail">✕ ${esc(f)}</div>`).join("");
+  return `<div class="turn">
+    <div class="say">${t.say ? "“" + esc(t.say) + "”" : `Turn ${i + 1}`}</div>
+    <div class="meta">route ${esc(t.route ?? "–")} · ${t.seconds.toFixed(1)} s${t.error ? ` · <span class="fail">${esc(t.error)}</span>` : ""}</div>
+    ${fails}${calls}<pre>${esc(t.reply || "(no reply)")}</pre></div>`;
+}
+
+function failures(only) {
+  const f = files[sel];
+  const seen = {};
+  const numbered = f.runs.map((r) => [r, (seen[r.scenario] = (seen[r.scenario] || 0) + 1)]);
+  const total = (name) => f.runs.filter((r) => r.scenario === name).length;
+  const bad = numbered.filter(([r]) => !r.passed && (!only || r.scenario === only));
+  if (!bad.length) { $("failures").innerHTML = `<p class="muted">No failing runs${only ? " for " + esc(only) : ""} in this file.</p>`; return; }
+  $("failures").innerHTML = (only ? `<p class="muted">Showing ${esc(only)} only · <a href="#" id="all">show all</a></p>` : "") +
+    bad.map(([r, i]) => {
+      const byTurn = {};
+      for (const line of r.failures) {
+        const m = line.match(/^turn (\d+) (.*)$/);
+        if (m) (byTurn[Number(m[1]) - 1] ||= []).push(m[2]);
+      }
+      return `<details><summary><strong>${esc(r.scenario)}</strong> <span class="muted">run ${i} of ${total(r.scenario)}</span> · <span class="fail">${esc(r.failures[0] || "")}</span>${r.failures.length > 1 ? ` <span class="muted">+${r.failures.length - 1} more</span>` : ""}</summary>
+        ${r.turns.map((t, k) => turnHtml(t, k, byTurn)).join("")}</details>`;
+    }).join("");
+  const all = $("all");
+  if (all) all.onclick = (e) => { e.preventDefault(); failures(); };
+}
+
+function draw(only) { selects(); tiles(); heat(); table(); failures(only); }
+
+$("pick").onchange = (e) => { sel = Number(e.target.value); draw(); };
+$("base").onchange = (e) => { base = Number(e.target.value); draw(); };
+$("heat").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-file]");
+  if (!btn) return;
+  sel = Number(btn.dataset.file);
+  draw(btn.dataset.scn);
+  if (btn.dataset.scn) $("failures").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+const tip = $("tip");
+$("heat").addEventListener("pointermove", (e) => {
+  const btn = e.target.closest(".swatch");
+  if (!btn) { tip.style.display = "none"; return; }
+  const f = files[Number(btn.dataset.file)];
+  const r = f.rows.find((x) => x.scenario === btn.dataset.scn);
+  tip.innerHTML = `<strong>${esc(r.scenario)}</strong><br>${esc(name(f))}<br>passed ${r.pass} · ` +
+    CATS.map((c) => `${c} ${r[c]}`).join(" · ") + `<br>p50 turn ${r.p50_s ?? "–"} s<br><span class="muted">click to see failures</span>`;
+  tip.style.display = "block";
+  const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+  const y = Math.min(e.clientY + 14, window.innerHeight - tip.offsetHeight - 8);
+  tip.style.left = `${x}px`; tip.style.top = `${y}px`;
+});
+$("heat").addEventListener("pointerleave", () => { tip.style.display = "none"; });
+
+draw();
+</script>
+</body>
+</html>

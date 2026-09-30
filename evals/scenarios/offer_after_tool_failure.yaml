@@ -1,0 +1,46 @@
+name: offer_after_tool_failure
+tags:
+- reporting
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  search_documents:
+  - error: document search is unavailable right now
+  draft_issue:
+  - result:
+      draft_id: d1
+      title: Search down
+      labels:
+      - kind/bug
+      - from-chat
+      body: 'Search unavailable
+
+
+        ---
+
+        Filed from the Uriel chat by **kid** on 2026-09-29 10:00 UTC (request `eval`).'
+      next: Nothing has been sent yet. Show the person this title and body and ask whether to send it; call file_issue
+        with this draft_id only after they say yes.
+  file_issue:
+  - when:
+      draft_id: d1
+    result:
+      filed: true
+      number: 12
+      url: https://github.com/TonyHeadband/uriel-agent/issues/12
+  - error: 'no such draft (it may have expired): call draft_issue again and show the new draft'
+turns:
+- say: What date does the school trip form say the trip is on?
+  expect:
+    calls:
+    - search_documents
+    not_calls:
+    - file_issue
+    reply:
+      contains_any:
+      - anthony
+      - report
+      not_contains:
+      - the trip is on

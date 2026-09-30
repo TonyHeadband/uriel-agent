@@ -1,0 +1,95 @@
+name: uriel
+
+# uriel-tools reads the deployment-wide models file from this repo's config/, mounted at /app/shared.
+# URIEL_MODELS_FILE set to /e2e/... (the e2e run) resolves in both the gateway and the tools containers.
+x-tools-env: &tools-env
+  URIEL_TOOLS_DATABASE_URL: postgresql://uriel_tools:uriel_tools@db:5432/uriel_tools
+  URIEL_MODELS_FILE: ${URIEL_MODELS_FILE:-/app/shared/models.dev.yaml}
+  URIEL_SOURCES_FILE: ${URIEL_SOURCES_FILE:-/app/config/sources.yaml}
+  URIEL_NC_URL: https://cloud.example.com
+  URIEL_NC_PUBLIC_URL: https://cloud.example.com
+
+x-tools: &tools
+  # The tool server lives in the uriel-tools repo; pin the release this agent was tested against.
+  # For a local build: see docs/development.md.
+  image: ${URIEL_TOOLS_IMAGE:-git.example.com/anthony-headband/uriel-tools:0.7.0}
+  # The uriel account's app password (URIEL_NC_APP_PASSWORD) comes from .env.
+  env_file: [{ path: ../.env, required: false }]
+  volumes: ["../config:/app/shared:ro", "../tests/e2e:/e2e:ro"]
+  depends_on: { db: { condition: service_healthy } }
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment: { POSTGRES_USER: uriel, POSTGRES_PASSWORD: uriel, POSTGRES_DB: uriel }
+    ports: ["55433:5432"]
+    volumes: ["./initdb:/docker-entrypoint-initdb.d:ro"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uriel"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mcp:
+    <<: *tools
+    environment:
+      <<: *tools-env
+      URIEL_MCP_API_KEYS: dev-mcp-key
+      URIEL_MCP_TOOLS_FILE: /app/config/tools.yaml
+      # file_issue files as the uriel Forgejo bot; its URIEL_FORGEJO_TOKEN comes from .env.
+      URIEL_FORGEJO_URL: https://git.example.com
+      URIEL_FORGEJO_REPO: anthony-headband/uriel-agent
+
+  # Document indexing: `--profile rag`. Webhooks can't reach a laptop, so the indexer relies on its startup
+  # and nightly reconcile; `events` is here to exercise the intake by hand.
+  indexer:
+    <<: *tools
+    profiles: [rag]
+    restart: unless-stopped
+    command: ["python", "-m", "uriel_tools.indexer"]
+    environment: *tools-env
+
+  events:
+    <<: *tools
+    profiles: [rag]
+    restart: unless-stopped
+    command: ["python", "-m", "uriel_tools.events"]
+    ports: ["8002:8002"]
+    environment:
+      <<: *tools-env
+      URIEL_EVENTS_KEY_NEXTCLOUD: dev-events-key
+
+  gateway:
+    build: { context: .., dockerfile: deploy/Dockerfile, target: gateway }
+    depends_on:
+      db: { condition: service_healthy }
+      mcp: { condition: service_started }
+    ports: ["8000:8000"]
+    volumes: ["../tests/e2e:/e2e:ro"]
+    environment:
+      URIEL_DATABASE_URL: postgresql://uriel:uriel@db:5432/uriel
+      URIEL_MCP_URL: http://mcp:8001/mcp
+      URIEL_MCP_API_KEY: dev-mcp-key
+      URIEL_MODELS_FILE: ${URIEL_MODELS_FILE:-/app/config/models.dev.yaml}
+      URIEL_SERVICE_KEYS_FILE: /e2e/service_keys.yaml
+      # Defaults target the mock issuer (browser and gateway must agree on its host: add "127.0.0.1 mock-oidc"
+      # to /etc/hosts). Set both in .env to log in against the real Authelia instead; see docs/development.md.
+      URIEL_OIDC_ISSUER: ${URIEL_OIDC_ISSUER:-http://mock-oidc:8080/default}
+      URIEL_OIDC_CLIENT_ID: uriel
+      URIEL_OIDC_CLIENT_SECRET: ${URIEL_OIDC_CLIENT_SECRET:-dev-secret}
+      URIEL_SESSION_SECRET: dev-session-secret-not-for-production-use
+      URIEL_COOKIE_SECURE: "false"
+      URIEL_PUBLIC_URL: http://localhost:8000
+
+  mock-oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.2.1
+    profiles: [dev]
+    ports: ["8080:8080"]
+    environment:
+      JSON_CONFIG: '{"interactiveLogin": true}'
+
+  stub-llm:
+    build: { context: .., dockerfile: deploy/Dockerfile, target: base }
+    profiles: [e2e]
+    volumes: ["../tests/e2e:/e2e:ro"]
+    command: ["uvicorn", "stub_llm:app", "--app-dir", "/e2e", "--host", "0.0.0.0", "--port", "9000"]

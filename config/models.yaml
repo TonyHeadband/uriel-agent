@@ -1,0 +1,51 @@
+models:
+  qwen3-8b:
+    provider: openai_compat
+    base_url: http://ollama.ai.svc.cluster.local:11434/v1
+    model: qwen3:8b
+    params:
+      temperature: 0.3
+      reasoning_effort: none
+  # Same model, thinking briefly before choosing a tool: with reasoning off it announced searches without
+  # making them and invented document lists (probe 2026-09-28). Costs ~2-5 s on tool turns only.
+  qwen3-8b-tools:
+    provider: openai_compat
+    base_url: http://ollama.ai.svc.cluster.local:11434/v1
+    model: qwen3:8b
+    params:
+      temperature: 0.3
+      reasoning_effort: low
+  # The two below are read by uriel-tools (document search); the gateway ignores them.
+  qwen3-embedding:
+    provider: openai_compat
+    base_url: http://ollama.ai.svc.cluster.local:11434/v1
+    model: qwen3-embedding:0.6b
+  qwen3-vl:
+    provider: openai_compat
+    base_url: http://ollama.ai.svc.cluster.local:11434/v1
+    model: qwen3-vl:8b
+    timeout_s: 600
+    params:
+      reasoning_effort: none
+  # Decision model for /v1/systemone (Ollama >= 0.35): calibrated probabilities over the tool categories
+  # (bench 2026-09-29: 12/12 right at confidence >= 0.5 where qwen3:8b self-reported 1.0 on its misses).
+  # tev1:4b pinned to the CPU (scripts/create-decision-models.sh): on the GPU it evicts qwen3:8b.
+  # Defined but unused: failed the pass bar on Homelab (spec, 'Measured on Homelab').
+  tev1-4b:
+    provider: systemone
+    base_url: http://ollama.ai.svc.cluster.local:11434/v1
+    model: tev1-4b-cpu
+    timeout_s: 2
+    params:
+      keep_alive: 30m
+roles:
+  interactive: qwen3-8b
+  background: qwen3-8b
+  tools: qwen3-8b-tools
+  embedding: qwen3-embedding
+  ocr: qwen3-vl
+deciders:
+  route:
+    adapter: llm
+    model: qwen3-8b
+    min_confidence: 0.6

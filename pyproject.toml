@@ -1,0 +1,67 @@
+[project]
+name = "uriel"
+version = "0.1.0"
+description = "Self-hosted family assistant: gateway and LangGraph agent with group-gated MCP tools"
+authors = [
+    { name = "TonyHeadband", email = "41022017+TonyHeadband@users.noreply.github.com" }
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+dependencies = [
+    "authlib>=1.8",
+    "fastapi>=0.141",
+    "httpx>=0.28",
+    "itsdangerous>=2.2",
+    "jinja2>=3.1",
+    "langchain-core>=1.6.5,<2",
+    "langchain-mcp-adapters>=0.3.2,<0.4",
+    "langchain-openai>=1.6.6,<2",
+    "langgraph>=1.2.12,<2",
+    "langgraph-checkpoint-postgres>=3.1.2,<4",
+    "mcp>=1.30",
+    "psycopg[binary,pool]>=3.3",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.15",
+    "pyjwt[crypto]>=2.15",
+    "python-multipart>=0.0.20",
+    "pyyaml>=6",
+    "sse-starlette>=3.4",
+    "uvicorn[standard]>=0.35",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "fastmcp>=3.4.7,<4",
+    "pytest>=8.4",
+    "pytest-asyncio>=1.2",
+    "ruff>=0.13",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+  "e2e: needs the compose stack (URIEL_E2E_URL)",
+  "live: talks to real Ollama (URIEL_LIVE_URL)",
+  "db: needs Postgres (URIEL_TEST_DATABASE_URL)",
+]
+addopts = "-m 'not e2e and not live'"
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's DI markers are evaluated once by design, not accidental mutable defaults.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Form"]

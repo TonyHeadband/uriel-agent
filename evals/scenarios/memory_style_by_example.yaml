@@ -1,0 +1,34 @@
+name: memory_style_by_example
+tags:
+- memory
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: Talk to me like Jarvis from Iron Man.
+  expect:
+    calls:
+    - set_style
+    not_calls:
+    - remember:
+        file: user
+    args:
+      set_style:
+        tone:
+          not_contains:
+          - jarvis
+tool_results:
+  set_style:
+  - result:
+      status: saved
+      saved:
+      - Tone
+      - Length
+      - Humour
+      - Avoid
+      markdown: '# How to talk to kid
+
+        ## Tone
+
+        - (as asked)'

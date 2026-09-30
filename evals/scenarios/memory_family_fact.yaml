@@ -1,0 +1,34 @@
+name: memory_family_fact
+tags:
+- memory
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: My sister loves jazz, she plays the saxophone.
+  expect:
+    calls:
+    - remember
+    args:
+      remember:
+        file: user
+        section:
+          matches: family
+        note:
+          contains:
+          - sister
+tool_results:
+  remember:
+  - when:
+      file: user
+    result:
+      status: saved
+      file: USER.md
+      section: (as asked)
+  - when:
+      file: soul
+    result:
+      status: saved
+      file: SOUL.md
+      section: (as asked)

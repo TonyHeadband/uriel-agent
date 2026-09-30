@@ -1,0 +1,43 @@
+name: memory_forget_birthday
+tags:
+- memory
+user:
+  name: kid
+  groups:
+  - family
+memory:
+  user: '# About kid
+
+
+    ## Name
+
+    - Kid
+
+
+    ## Birthday
+
+    - 12 March
+
+
+    ## Music
+
+    - Jazz'
+turns:
+- say: Forget my birthday.
+  expect:
+    calls:
+    - forget
+    not_calls:
+    - remember
+    args:
+      forget:
+        file: user
+        text:
+          contains:
+          - birthday
+tool_results:
+  forget:
+  - result:
+      status: forgotten
+      removed:
+      - 12 March

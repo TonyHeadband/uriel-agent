@@ -1,0 +1,11 @@
+models:
+  stub:
+    provider: openai_compat
+    base_url: http://stub-llm:9000/v1
+    model: stub
+    timeout_s: 10
+    params: { temperature: 0 }
+# uriel-tools' roles point at the stub too; the e2e never embeds, so search falls back to full text.
+roles: { interactive: stub, background: stub, embedding: stub, ocr: stub }
+deciders:
+  route: { adapter: llm, model: stub, min_confidence: 0.6 }

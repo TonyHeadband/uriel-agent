@@ -1,0 +1,38 @@
+name: memory_call_me_sir
+tags:
+- memory
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: From now on, call me Sir.
+  expect:
+    route: tools
+    calls:
+    - remember
+    not_calls:
+    - remember:
+        file: soul
+    args:
+      remember:
+        file: user
+        section:
+          matches: ^name$
+        note:
+          contains:
+          - sir
+tool_results:
+  remember:
+  - when:
+      file: user
+    result:
+      status: saved
+      file: USER.md
+      section: (as asked)
+  - when:
+      file: soul
+    result:
+      status: saved
+      file: SOUL.md
+      section: (as asked)

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="layout">
+  <nav>
+    <a href="/">+ New conversation</a>
+    {% for c in conversations %}<a href="/?c={{ c.id }}"{% if c.id == conversation_id %} class="active"{% endif %}>{{ c.title }}</a>{% endfor %}
+    <form method="post" action="/auth/logout"><button type="submit">Sign out {{ user }}</button></form>
+  </nav>
+  <main>
+    <div id="log">
+      {% if not history %}<p class="empty">Ask Uriel anything. Enter sends, Shift+Enter adds a new line.</p>{% endif %}
+      {% for m in history %}{% if m.role == "tool" %}<div class="msg assistant"><span class="status">used {{ m.content }}</span></div>{% else %}<div class="msg {{ m.role }}">{{ m.content }}</div>{% endif %}{% endfor %}
+    </div>
+    <form id="composer" class="composer" hx-post="/chat" hx-target="#log" hx-swap="beforeend"
+          hx-on::after-request="if(event.detail.successful) this.reset()">
+      <input type="hidden" name="conversation_id" value="{{ conversation_id }}">
+      <textarea name="message" rows="1" required autofocus placeholder="Ask Uriel…"></textarea>
+      <button type="submit">Send</button>
+    </form>
+  </main>
+</div>
+<script>
+(() => {
+  const form = document.getElementById("composer");
+  const box = form.elements.message;
+  const send = form.querySelector("button");
+  const log = document.getElementById("log");
+  const pinned = () => window.innerHeight + window.scrollY >= document.body.scrollHeight - 80;
+  const scrollDown = () => window.scrollTo(0, document.body.scrollHeight);
+  const setBusy = (busy) => { send.disabled = busy; if (!busy) box.focus(); };
+
+  const grow = () => { box.style.height = "auto"; box.style.height = box.scrollHeight + "px"; };
+  box.addEventListener("input", grow);
+
+  box.addEventListener("keydown", (e) => {
+    // isComposing: Enter confirms an IME candidate and must not send.
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+    e.preventDefault();
+    if (!send.disabled && box.value.trim()) form.requestSubmit();
+  });
+
+  form.addEventListener("htmx:beforeRequest", () => setBusy(true));
+  // reset() runs after this listener and doesn't fire "input", so shrink once it has cleared the box.
+  form.addEventListener("reset", () => setTimeout(grow));
+  form.addEventListener("htmx:afterRequest", (e) => {
+    if (!e.detail.successful) setBusy(false);
+  });
+  document.addEventListener("htmx:sseClose", () => setBusy(false));
+
+  // Follow the stream only while the reader is already at the bottom.
+  new MutationObserver(() => { if (stick) scrollDown(); }).observe(log, { childList: true, subtree: true, characterData: true });
+  let stick = true;
+  window.addEventListener("scroll", () => { stick = pinned(); }, { passive: true });
+  form.addEventListener("htmx:beforeRequest", () => {
+    stick = true;
+    log.querySelector(".empty")?.remove();
+  });
+  scrollDown();
+})();
+</script>
+{% endblock %}

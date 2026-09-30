@@ -1,0 +1,18 @@
+# Evals only: a hosted model the gateway refuses to start with. The key comes from GEMINI_API_KEY.
+models:
+  gemini:
+    provider: openai_compat
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    # Not gemini-flash-latest (3.x): it requires each tool call's thought_signature back, which ChatOpenAI
+    # drops, so every tool turn fails with a 400 (checked 2026-09-29). 2.5 has no signature to return.
+    model: gemini-2.5-flash
+    api_key_env: GEMINI_API_KEY
+    timeout_s: 60
+    max_retries: 4  # the endpoint answers 503 "high demand" in bursts
+roles: { interactive: gemini, background: gemini, tools: gemini }
+deciders:
+  route: { adapter: llm, model: gemini }
+# USD per million tokens, for the runner's budget (Google's paid-tier list price for 2.5 Flash, text; check
+# https://ai.google.dev/gemini-api/docs/pricing when changing model). The gateway ignores this key.
+eval_prices:
+  gemini: { usd_per_mtok_in: 0.30, usd_per_mtok_out: 2.50 }

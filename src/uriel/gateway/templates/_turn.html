@@ -1,0 +1,3 @@
+<div class="msg user">{{ text }}</div>
+<div class="msg assistant" hx-ext="sse" sse-connect="/chat/stream/{{ turn_id }}"
+     sse-swap="token,tool,notice,error" hx-swap="beforeend" sse-close="done"></div>

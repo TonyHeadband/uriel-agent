@@ -1,0 +1,40 @@
+{"id": "it_greeting", "source": "holdout", "context": "Ciao! Come va oggi?", "expected": "direct", "expected_category": "none"}
+{"id": "it_general_pasta", "source": "holdout", "context": "Quanto sale si mette nell'acqua della pasta?", "expected": "direct", "expected_category": "none"}
+{"id": "it_memory_food", "source": "holdout", "context": "Mi piace tantissimo la pizza con le acciughe, ricordatelo.", "expected": "tools", "expected_category": "memory"}
+{"id": "it_doc_bolletta", "source": "holdout", "context": "Quando scade la bolletta del gas?", "expected": "tools", "expected_category": "documents"}
+{"id": "it_style", "source": "holdout", "context": "Da adesso parlami come un maggiordomo inglese.", "expected": "tools", "expected_category": "memory"}
+{"id": "it_report", "source": "holdout", "context": "Dì ad Anthony che la ricerca dei documenti non funziona.", "expected": "tools", "expected_category": "reporting"}
+{"id": "it_homelab", "source": "holdout", "context": "Il server di casa è acceso?", "expected": "tools", "expected_category": "homelab"}
+{"id": "it_door", "source": "holdout", "context": "È passato qualcuno al cancello stamattina?", "expected": "tools", "expected_category": "camera"}
+{"id": "indirect_door", "source": "holdout", "context": "I heard the doorbell while I was in the shower, any idea who it was?", "expected": "tools", "expected_category": "camera"}
+{"id": "indirect_homelab", "source": "holdout", "context": "The movies won't load on the TV tonight, is something down?", "expected": "tools", "expected_category": "homelab"}
+{"id": "indirect_doc_passport", "source": "holdout", "context": "When does my passport expire?", "expected": "tools", "expected_category": "documents"}
+{"id": "indirect_doc_warranty", "source": "holdout", "context": "Is the washing machine still under warranty?", "expected": "tools", "expected_category": "documents"}
+{"id": "indirect_doc_school", "source": "holdout", "context": "What did the teacher's letter say about the field trip money?", "expected": "tools", "expected_category": "documents"}
+{"id": "indirect_memory_allergy", "source": "holdout", "context": "Just so you know, I'm allergic to peanuts.", "expected": "tools", "expected_category": "memory"}
+{"id": "indirect_memory_pet", "source": "holdout", "context": "We got a new puppy, her name is Luna!", "expected": "tools", "expected_category": "memory"}
+{"id": "indirect_memory_recall", "source": "holdout", "context": "Do you remember what my favourite food is?", "expected": "tools", "expected_category": "memory"}
+{"id": "indirect_memory_forget", "source": "holdout", "context": "Please drop what you know about my job, it changed.", "expected": "tools", "expected_category": "memory"}
+{"id": "indirect_style_emoji", "source": "holdout", "context": "Can you stop using so many emojis with me?", "expected": "tools", "expected_category": "memory"}
+{"id": "indirect_style_formal", "source": "holdout", "context": "Could you be a bit more formal when you talk to me?", "expected": "tools", "expected_category": "memory"}
+{"id": "indirect_report_wrong", "source": "holdout", "context": "That's the wrong bill, you keep mixing them up. Anthony should fix this.", "expected": "tools", "expected_category": "reporting"}
+{"id": "indirect_report_wish", "source": "holdout", "context": "It would be great if you could read my calendar too. Pass it on?", "expected": "tools", "expected_category": "reporting"}
+{"id": "followup_yes_sign", "source": "holdout", "context": "Assistant: I'll put your signature in the 'Parent/Guardian' box at the bottom of page 2. OK?\nUser: yes go ahead", "expected": "tools", "expected_category": "documents"}
+{"id": "followup_short_answer", "source": "holdout", "context": "Assistant: Got it. And what's your favourite kind of music?\nUser: mostly 80s rock", "expected": "tools", "expected_category": "memory"}
+{"id": "followup_field", "source": "holdout", "context": "Assistant: The form asks for an emergency phone number. What should I put?\nUser: 347 555 0192", "expected": "tools", "expected_category": "documents"}
+{"id": "followup_thanks_after_tool", "source": "holdout", "context": "Assistant: I saved that: you prefer to be called Toni.\nUser: perfect, thank you", "expected": "direct", "expected_category": "none"}
+{"id": "followup_general_after_tool", "source": "holdout", "context": "Assistant: The door camera saw a delivery driver at 10:42.\nUser: cool. by the way, how far is the moon?", "expected": "direct", "expected_category": "none"}
+{"id": "near_miss_passport_general", "source": "holdout", "context": "How long does it usually take to renew a passport in Italy?", "expected": "direct", "expected_category": "none"}
+{"id": "near_miss_server_general", "source": "holdout", "context": "What's the difference between a server and a NAS?", "expected": "direct", "expected_category": "none"}
+{"id": "near_miss_doorbell_general", "source": "holdout", "context": "Which smart doorbells work without a subscription?", "expected": "direct", "expected_category": "none"}
+{"id": "near_miss_memory_general", "source": "holdout", "context": "How does human memory work?", "expected": "direct", "expected_category": "none"}
+{"id": "near_miss_style_general", "source": "holdout", "context": "How did Jarvis talk in the Iron Man movies?", "expected": "direct", "expected_category": "none"}
+{"id": "near_miss_form_general", "source": "holdout", "context": "What is a W-2 form?", "expected": "direct", "expected_category": "none"}
+{"id": "near_miss_bill_general", "source": "holdout", "context": "Any tips to lower the electricity bill in winter?", "expected": "direct", "expected_category": "none"}
+{"id": "near_miss_anthony", "source": "holdout", "context": "Who is Anthony Hopkins?", "expected": "direct", "expected_category": "none"}
+{"id": "general_poem", "source": "holdout", "context": "Write a short poem about autumn for my daughter.", "expected": "direct", "expected_category": "none"}
+{"id": "general_homework", "source": "holdout", "context": "Can you explain fractions to a 9 year old?", "expected": "direct", "expected_category": "none"}
+{"id": "general_weekend_idea", "source": "holdout", "context": "Give me three ideas for a rainy Sunday with kids.", "expected": "direct", "expected_category": "none"}
+{"id": "general_how_are_you_long", "source": "holdout", "context": "Hey, long day at work, just wanted to say hi before dinner.", "expected": "direct", "expected_category": "none"}
+{"id": "general_opinion", "source": "holdout", "context": "Do you think cats or dogs are better pets?", "expected": "direct", "expected_category": "none"}
+{"id": "general_unit", "source": "holdout", "context": "How many cups is 250 grams of flour?", "expected": "direct", "expected_category": "none"}

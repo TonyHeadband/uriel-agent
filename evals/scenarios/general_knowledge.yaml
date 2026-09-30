@@ -1,0 +1,12 @@
+name: general_knowledge
+tags:
+- routing
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: How long should I boil an egg for a runny yolk?
+  expect:
+    route: direct
+    no_calls: true

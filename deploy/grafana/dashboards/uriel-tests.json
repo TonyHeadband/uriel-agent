@@ -1,0 +1,557 @@
+{
+  "uid": "uriel-tests",
+  "title": "Uriel tests",
+  "description": "pytest sessions from the workstation and CI: outcomes over time, failures, flaky and slow tests, and how recently each live and e2e check really ran.",
+  "tags": [
+    "uriel"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 41,
+  "refresh": "",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "source",
+        "label": "Source",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "uriel-results"
+        },
+        "query": "SELECT DISTINCT source FROM runs WHERE kind = 'test' ORDER BY 1",
+        "definition": "SELECT DISTINCT source FROM runs WHERE kind = 'test' ORDER BY 1",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "branch",
+        "label": "Branch",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "uriel-results"
+        },
+        "query": "SELECT DISTINCT branch FROM runs WHERE kind = 'test' AND branch IS NOT NULL ORDER BY 1",
+        "definition": "SELECT DISTINCT branch FROM runs WHERE kind = 'test' AND branch IS NOT NULL ORDER BY 1",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Last session",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "uriel-results"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "uriel-results"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "WITH last AS (SELECT r.id FROM runs r WHERE r.kind = 'test' AND $__timeFilter(r.started_at) AND r.source IN (${source:sqlstring}) AND r.branch IN (${branch:sqlstring}) ORDER BY r.started_at DESC LIMIT 1)\nSELECT count(*) FILTER (WHERE outcome = 'passed') AS passed, count(*) FILTER (WHERE outcome = 'failed') AS failed,\n       count(*) FILTER (WHERE outcome = 'error') AS errors, count(*) FILTER (WHERE outcome = 'skipped') AS skipped\nFROM test_results WHERE run_id IN (SELECT id FROM last)"
+        }
+      ],
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "passed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "errors"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "skipped"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Last sessions",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "uriel-results"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "uriel-results"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT r.started_at AS time, r.suite, r.source, r.branch, left(r.git_sha, 8) AS commit FROM runs r WHERE r.kind = 'test' AND $__timeFilter(r.started_at) AND r.source IN (${source:sqlstring}) AND r.branch IN (${branch:sqlstring}) ORDER BY r.started_at DESC LIMIT 3"
+        }
+      ],
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Outcomes per session (last 40)",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "uriel-results"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "uriel-results"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT to_char(started_at AT TIME ZONE 'UTC', 'MM-DD HH24:MI') || ' ' || source AS session, passed, failed, errors, skipped\nFROM (SELECT r.started_at, r.source,\n  count(*) FILTER (WHERE t.outcome = 'passed') AS passed, count(*) FILTER (WHERE t.outcome = 'failed') AS failed,\n  count(*) FILTER (WHERE t.outcome = 'error') AS errors, count(*) FILTER (WHERE t.outcome = 'skipped') AS skipped\n  FROM runs r JOIN test_results t ON t.run_id = r.id WHERE r.kind = 'test' AND $__timeFilter(r.started_at) AND r.source IN (${source:sqlstring}) AND r.branch IN (${branch:sqlstring}) GROUP BY r.id, r.started_at, r.source ORDER BY r.started_at DESC LIMIT 40) s\nORDER BY started_at"
+        }
+      ],
+      "description": "Each bar is one pytest session (time in UTC, and where it ran).",
+      "options": {
+        "stacking": "normal",
+        "xField": "session",
+        "showValue": "never",
+        "xTickLabelRotation": -45,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "passed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "errors"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "skipped"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "title": "Live and e2e checks: when each last really ran",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "uriel-results"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "uriel-results"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT t.nodeid AS test, array_to_string(min(t.markers), ', ') AS kind,\n  max(r.started_at) FILTER (WHERE t.outcome <> 'skipped') AS \"last ran\",\n  (array_agg(t.outcome ORDER BY r.started_at DESC) FILTER (WHERE t.outcome <> 'skipped'))[1] AS \"last outcome\",\n  count(*) FILTER (WHERE t.outcome = 'skipped') AS \"times skipped\"\nFROM runs r JOIN test_results t ON t.run_id = r.id WHERE r.kind = 'test' AND $__timeFilter(r.started_at) AND r.source IN (${source:sqlstring}) AND r.branch IN (${branch:sqlstring}) AND t.markers && ARRAY['live', 'e2e'] GROUP BY t.nodeid ORDER BY \"last ran\" NULLS FIRST"
+        }
+      ],
+      "description": "Live tests skip without credentials, so a green session says nothing about them: this shows how stale each one is.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last ran"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last outcome"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "passed": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "failed": {
+                        "color": "red",
+                        "index": 1
+                      },
+                      "error": {
+                        "color": "orange",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "title": "Failures",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "uriel-results"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "uriel-results"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT r.started_at AS time, t.nodeid AS test, t.outcome, r.source, r.branch, left(r.git_sha, 8) AS commit, t.message\nFROM runs r JOIN test_results t ON t.run_id = r.id WHERE r.kind = 'test' AND $__timeFilter(r.started_at) AND r.source IN (${source:sqlstring}) AND r.branch IN (${branch:sqlstring}) AND t.outcome IN ('failed', 'error') ORDER BY r.started_at DESC LIMIT 300"
+        }
+      ],
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "title": "Flaky: passed and failed in this range",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "uriel-results"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "uriel-results"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT t.nodeid AS test, count(*) FILTER (WHERE t.outcome = 'passed') AS passed,\n  count(*) FILTER (WHERE t.outcome IN ('failed', 'error')) AS failed,\n  max(r.started_at) FILTER (WHERE t.outcome IN ('failed', 'error')) AS \"last failed\"\nFROM runs r JOIN test_results t ON t.run_id = r.id WHERE r.kind = 'test' AND $__timeFilter(r.started_at) AND r.source IN (${source:sqlstring}) AND r.branch IN (${branch:sqlstring}) GROUP BY t.nodeid\nHAVING count(*) FILTER (WHERE t.outcome = 'passed') > 0 AND count(*) FILTER (WHERE t.outcome IN ('failed', 'error')) > 0\nORDER BY failed DESC"
+        }
+      ],
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last failed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "title": "Slowest tests (average)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "uriel-results"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 35,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "uriel-results"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT t.nodeid AS test, round(avg(t.duration_s)::numeric, 2) AS seconds, count(*) AS runs\nFROM runs r JOIN test_results t ON t.run_id = r.id WHERE r.kind = 'test' AND $__timeFilter(r.started_at) AND r.source IN (${source:sqlstring}) AND r.branch IN (${branch:sqlstring}) AND t.outcome <> 'skipped' GROUP BY t.nodeid ORDER BY 2 DESC LIMIT 15"
+        }
+      ],
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "seconds"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "annotations": {
+    "list": []
+  }
+}

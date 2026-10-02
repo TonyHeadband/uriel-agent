@@ -14,6 +14,11 @@ class ChatEvent:
     data: Any
 
 
+def has_draft(message: ToolMessage) -> bool:
+    """A draft (a tool result with a draft_id) changes nothing until the person says yes."""
+    return '"draft_id"' in str(message.content)
+
+
 async def stream_graph(graph, text: str, *, config: dict, context: Any) -> AsyncIterator[ChatEvent]:
     async for mode, chunk in graph.astream(
         {"messages": [HumanMessage(text)]}, config, context=context, stream_mode=["messages", "updates"]
@@ -29,6 +34,9 @@ async def stream_graph(graph, text: str, *, config: dict, context: Any) -> Async
                     for tc in m.tool_calls:
                         yield ChatEvent("tool_call", {"name": tc["name"], "args": tc["args"], "id": tc["id"]})
                 elif isinstance(m, ToolMessage):
-                    yield ChatEvent("tool_result", {"name": m.name, "status": m.status, "content": m.content})
+                    yield ChatEvent(
+                        "tool_result",
+                        {"name": m.name, "status": m.status, "content": m.content, "awaiting": has_draft(m)},
+                    )
                 elif isinstance(m, AIMessage):
                     yield ChatEvent("final", m.content)

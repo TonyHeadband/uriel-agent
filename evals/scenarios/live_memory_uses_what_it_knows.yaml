@@ -1,0 +1,23 @@
+name: live_memory_uses_what_it_knows
+tags:
+- memory
+live: true
+user:
+  name: kid
+  groups:
+  - family
+setup:
+- tool: remember
+  args:
+    file: user
+    section: Music
+    note: Jazz
+turns:
+- say: What kind of music do I like?
+  expect:
+    not_calls:
+    - remember
+    - forget
+    reply:
+      contains:
+      - jazz

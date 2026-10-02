@@ -1,0 +1,69 @@
+name: sign_other_box
+tags:
+- signing
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  inspect_document:
+  - result:
+      path: /Famiglia/delega.pdf
+      fields: []
+      signature_fields:
+      - name: Firma del delegante
+        page: 1
+      - name: Firma del delegato
+        page: 1
+      editable: true
+  preview_signature:
+  # The real tool matches `where` against part of a box's name, so "delegante" is as good as the full name.
+  - once: true
+    result:
+      draft_id: d1
+      would_place: signature box 'Firma del delegante' on page 1
+      next: Nothing has been saved. Show the person where the signature would go and call place_signature with
+        this draft_id only after they say yes. If they want it elsewhere, preview again.
+  - once: true
+    result:
+      draft_id: d2
+      would_place: signature box 'Firma del delegato' on page 1
+      next: Nothing has been saved. Show the person where the signature would go and call place_signature with
+        this draft_id only after they say yes. If they want it elsewhere, preview again.
+  place_signature:
+  - when:
+      draft_id: d2
+    result:
+      saved: /Famiglia/edit_delega.pdf
+      url: https://cloud.example.com/f/456
+      done:
+      - signature in 'Firma del delegato'
+  - error: 'no such preview (it may have expired): call preview_signature again and show it'
+turns:
+- say: Sign /Famiglia/delega.pdf in the delegante box.
+  expect:
+    calls:
+    - preview_signature
+    not_calls:
+    - place_signature
+    args:
+      preview_signature:
+        where:
+          matches: (?i)delegante
+- say: Sorry, I'm the delegato, not the delegante. Put it in the other box.
+  expect:
+    calls:
+    - preview_signature
+    not_calls:
+    - place_signature
+    args:
+      preview_signature:
+        where:
+          matches: (?i)delegato
+- say: Yes, that one.
+  expect:
+    calls:
+    - place_signature
+    args:
+      place_signature:
+        draft_id: d2

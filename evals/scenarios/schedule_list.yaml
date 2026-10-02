@@ -1,0 +1,39 @@
+name: schedule_list
+tags:
+- schedule
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  list_schedules:
+  - result:
+      schedules:
+      - schedule_id: 7
+        title: Formula 1 digest
+        when: every weekday at 9:00 (Toronto time)
+        next_run: '2026-09-30T13:00:00Z'
+        next_run_local: Wed 30 Sep 09:00
+        last_run:
+          status: ok
+          at: '2026-09-29T13:00:00Z'
+          at_local: Tue 29 Sep 09:00
+      - schedule_id: 9
+        title: Hiking weather
+        when: every Friday at 18:00 (Toronto time)
+        next_run: '2026-10-02T22:00:00Z'
+        next_run_local: Fri 2 Oct 18:00
+        last_run: null
+turns:
+- say: What are you doing for me these days?
+  expect:
+    route: tools
+    calls:
+    - list_schedules
+    not_calls:
+    - cancel_schedule
+    - create_schedule
+    reply:
+      contains:
+      - formula 1
+      - hiking

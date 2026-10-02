@@ -4,7 +4,7 @@ import pytest
 
 from uriel.agent.decider import Decision
 from uriel.gateway.db import apply_migrations, make_pool
-from uriel.gateway.stores import ConversationStore, DecisionLog
+from uriel.gateway.stores import ConversationStore, DecisionLog, TalkCursors
 
 pytestmark = pytest.mark.db
 
@@ -86,3 +86,12 @@ CREATE TABLE test_table (id serial PRIMARY KEY);
             )
         ).fetchone()
     assert result["exists"]
+
+
+async def test_talk_cursors_only_move_forward(pool):
+    cursors = TalkCursors(pool)
+    assert await cursors.load() == {}
+    await cursors.advance("dm-dad", 5)
+    await cursors.advance("dm-dad", 3)
+    await cursors.advance("family", 0)
+    assert await cursors.load() == {"dm-dad": 5, "family": 0}

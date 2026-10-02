@@ -1,0 +1,62 @@
+name: schedule_draft_then_create
+tags:
+- schedule
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  draft_schedule:
+  - result:
+      draft_id: s1
+      title: Formula 1 digest
+      prompt: Give me a digest of this week's Formula 1 news with links.
+      when: every weekday at 9:00 (Toronto time)
+      next_runs:
+      - Wed 30 Sep 09:00
+      - Thu 1 Oct 09:00
+      - Fri 2 Oct 09:00
+      tools:
+      - web_search
+      tz: America/Toronto
+      next: Nothing is scheduled yet. Show the person when it will run and what it will do, and call
+        create_schedule with this draft_id only after they say yes.
+  create_schedule:
+  - when:
+      draft_id: s1
+    result:
+      schedule_id: 7
+      status: active
+      title: Formula 1 digest
+      when: every weekday at 9:00 (Toronto time)
+      next_run_local: Wed 30 Sep 09:00
+  - error: 'no such draft (it may have expired): call draft_schedule again and show the new draft'
+turns:
+- say: Every weekday at 9, send me a digest of Formula 1 news.
+  expect:
+    route: tools
+    calls:
+    - draft_schedule
+    not_calls:
+    - create_schedule
+    args:
+      draft_schedule:
+        frequency: weekdays
+        time:
+          matches: ^0?9:00
+    reply:
+      contains:
+      - '9:00'
+      not_contains:
+      - is scheduled
+      - i've scheduled
+      - have scheduled
+      - is set up
+      - all set
+- say: Yes, do it.
+  expect:
+    calls:
+    - create_schedule
+    args:
+      create_schedule:
+        draft_id: s1

@@ -26,9 +26,9 @@ INSTRUCTIONS = {
         'letter or file), even when it doesn\'t say "document", and any "do I have" or "what does my/the '
         '... say" question, and any request to fill in, change, correct, annotate, sign or approve one of '
         "the family's documents.\n"
-        "- tools also: anything the user tells about themselves to keep (what to call them, their name, "
-        "birthday, likes, music, hobbies, food), any request to remember or forget something, and setting up "
-        "or showing their profile.\n"
+        "- tools also: anything the user tells about themselves or their family to keep (what to call them, "
+        "their name, birthday, likes, music, hobbies, food, a relative's interests), any request to remember "
+        "or forget something, and setting up or showing their profile.\n"
         "- tools also: the user tells the assistant how to talk to them, with anyone as the model: "
         '"talk to me like <anyone>", "be <a character or role> with me", "sound like <someone>", '
         '"from now on answer like <someone>", "be shorter / warmer / in <a language>". These are tools '
@@ -39,6 +39,14 @@ INSTRUCTIONS = {
         # Probe 2026-09-29: appended to the bullet above, "Uriel is slow, please tell Anthony" routed direct.
         "- tools: the user reports a problem with Uriel or wants something passed on to Anthony. These are "
         "reported to Anthony with a tool.\n"
+        "- tools also: news, current events or anything that needs up-to-date information from the web; and "
+        'setting up, listing, changing or cancelling work the assistant does on a schedule ("every day at '
+        '9...", "what are you doing for me?"), including a message that starts with "Scheduled task", and '
+        'stopping one by its name ("stop the news one", "no more traffic updates").\n'
+        # Live 2026-09-30: "remind me in 3 minutes to stretch" routed direct, after a reply or alone.
+        "- tools also: the user's or the family's calendar: any reminder (\"remind me ...\"), event, "
+        "appointment or task to add, move, finish or remove, and what is on the agenda. A request to be "
+        "reminded of anything is tools, whatever the assistant said before.\n"
         "- direct: greetings, chit-chat, or general knowledge that doesn't depend on the family's own "
         "records.\n"
         "Return the route and your confidence from 0 to 1."

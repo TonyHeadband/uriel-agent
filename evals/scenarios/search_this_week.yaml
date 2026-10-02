@@ -1,0 +1,31 @@
+name: search_this_week
+tags:
+- search
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  web_search:
+  - result:
+      query: Formula 1 this week
+      results:
+      - title: Verstappen wins in Singapore
+        url: https://www.formula1.com/en/latest/singapore-2026
+        snippet: Max Verstappen won a hot race in Singapore on Sunday.
+        engine: bing
+        published: '2026-09-27T15:00:00Z'
+turns:
+- say: What happened in Formula 1 this week?
+  expect:
+    calls:
+    - web_search
+    args:
+      web_search:
+        time_range:
+          contains_any:
+          - week
+          - day
+    reply:
+      contains:
+      - formula1.com

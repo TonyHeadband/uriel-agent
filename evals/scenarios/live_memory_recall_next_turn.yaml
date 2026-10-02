@@ -1,0 +1,25 @@
+name: live_memory_recall_next_turn
+tags:
+- memory
+live: true
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: From now on, call me Sir.
+  expect:
+    calls:
+    - remember
+- say: What's my name?
+  expect:
+    reply:
+      contains:
+      - sir
+after:
+- tool: show_memory
+  args:
+    file: user
+  expect:
+    contains:
+    - sir

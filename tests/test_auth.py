@@ -82,3 +82,11 @@ def test_service_keys_match_by_hash(tmp_path):
     assert (p.user_id, p.groups, p.kind) == ("kitchen", frozenset({"family"}), "service")
     assert keys.lookup("nope") is None
     assert ServiceKeys.empty().lookup("kitchen-secret") is None
+
+
+def test_any_accepted_audience_is_enough():
+    verifier = JwtVerifier(ISS, [AUD, "uriel-companion"], FakeJwks())
+    assert verifier.verify(token(aud="uriel-companion")).user_id == "dad"
+    assert verifier.verify(token()).user_id == "dad"
+    with pytest.raises(AuthError):
+        verifier.verify(token(aud="other"))

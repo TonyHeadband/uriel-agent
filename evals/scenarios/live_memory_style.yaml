@@ -1,0 +1,20 @@
+name: live_memory_style
+tags:
+- memory
+live: true
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: Talk to me like a pirate from now on.
+  expect:
+    calls:
+    - set_style
+after:
+- tool: show_memory
+  args:
+    file: soul
+  expect:
+    contains:
+    - pirate

@@ -1,13 +1,16 @@
 """Run the tool-use scenarios against a model and print pass rates.
 
-    GEMINI_API_KEY=... uv run python -m evals.run --tag memory [--n 3] [--budget-usd 0.50]
-    uv run python -m evals.run --models config/models.dev.yaml     # everything on local qwen: release check
+    uv run python -m evals.run --tag memory [--n 3]              # qwen3:14b on the workstation GPU
+    uv run python -m evals.run --models config/models.dev.yaml  # everything on Homelab's qwen: release check
+    uv run python -m evals.run --live                           # against a real uriel-tools: what's saved
 
 Like tests: while working on something, run only its area (--tag, or --only a scenario); the whole suite
 is the release check.
 
-Design work runs on Gemini by default (synthetic scenarios only), within a dollar budget per run. Needs a
-uriel-tools server to list the tools; nothing is called on it.
+Design work runs on qwen3:14b on the workstation by default: a size up from Homelab's qwen3:8b, same
+family. Gemini (evals/models.gemini.yaml) is opt-in, within a dollar budget per run. Needs a uriel-tools
+server to list the tools; nothing is called on it, except with --live: live scenarios call it for real,
+each run as a new throwaway user.
 """
 
 import argparse
@@ -17,12 +20,14 @@ import os
 from collections import Counter
 from dataclasses import asdict
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 import yaml
 
+from evals import publish
 from evals.cost import Meter, load_prices, missing_prices, stop_reason
-from evals.harness import Scenario, run_scenario, summarise
+from evals.harness import CATEGORIES, Scenario, principal_for, run_scenario, summarise
 from uriel.agent.decider import GuardedDecider, LLMDecider, decider_for
 from uriel.agent.mcp_tools import McpToolbox
 from uriel.agent.models import build_chat_model
@@ -32,10 +37,13 @@ from uriel.principal import Principal
 HERE = Path(__file__).parent
 
 
-def load_scenarios(only: list[str], tags: list[str] | None = None) -> list[Scenario]:
-    """Scenarios named in only, plus those carrying any of tags; everything when neither is given."""
+def load_scenarios(only: list[str], tags: list[str] | None = None, live: bool = False) -> list[Scenario]:
+    """Scenarios named in only, plus those carrying any of tags; everything when neither is given. Live
+    scenarios and scripted ones never mix: one kind needs a uriel-tools with a database, the other doesn't."""
     found = [
-        Scenario.model_validate(yaml.safe_load(p.read_text())) for p in sorted(HERE.glob("scenarios/*.yaml"))
+        s
+        for p in sorted(HERE.glob("scenarios/*.yaml"))
+        if (s := Scenario.model_validate(yaml.safe_load(p.read_text()))).live == live
     ]
     if not only and not tags:
         return found
@@ -49,7 +57,7 @@ async def templates_for(toolbox: McpToolbox, scenario: Scenario):
 
 
 def print_table(rows: list[dict]) -> None:
-    cols = ["scenario", "pass", "route", "calls", "args", "reply", "p50_s"]
+    cols = ["scenario", "pass", *CATEGORIES, "p50_s"]
     widths = {c: max(len(c), *(len(str(r[c])) for r in rows)) for c in cols}
     print("  ".join(c.ljust(widths[c]) for c in cols))
     for r in rows:
@@ -70,7 +78,10 @@ async def main() -> None:
         "--tag", nargs="*", default=[], help="run the scenarios for these areas (reporting, memory…)"
     )
     ap.add_argument("--only", nargs="*", default=[], help="scenario names")
-    ap.add_argument("--models", default=os.environ.get("URIEL_EVAL_MODELS", str(HERE / "models.gemini.yaml")))
+    ap.add_argument("--live", action="store_true", help="run the live scenarios against --mcp-url instead")
+    ap.add_argument(
+        "--models", default=os.environ.get("URIEL_EVAL_MODELS", str(HERE / "models.4080-qwen3-14b.yaml"))
+    )
     ap.add_argument(
         "--budget-usd", type=float, default=0.50, help="stop the suite once hosted usage costs this"
     )
@@ -110,17 +121,29 @@ async def main() -> None:
     label = args.label or " + ".join(sorted({m.model for m in used}))
 
     runs, stopped = [], None
-    for scenario in load_scenarios(args.only, args.tag):
-        templates = await templates_for(toolbox, scenario)
+
+    async def once(scenario: Scenario, templates, i: int):
+        run = partial(
+            run_scenario,
+            scenario,
+            chat_model=chat_model,
+            tool_model=tool_model,
+            decider=decider,
+            templates=templates,
+            coverage=route.coverage,
+        )
+        if not scenario.live:
+            return await run()
+        principal = principal_for(scenario)
+        async with toolbox.open(principal, f"eval-{scenario.name}-{i}") as tools:
+            return await run(live_tools=tools, principal=principal)
+
+    started = datetime.now(UTC)
+    scenarios = load_scenarios(args.only, args.tag, live=args.live)
+    for scenario in scenarios:
+        templates = [] if scenario.live else await templates_for(toolbox, scenario)
         for i in range(args.n):
-            run = await run_scenario(
-                scenario,
-                chat_model=chat_model,
-                tool_model=tool_model,
-                decider=decider,
-                templates=templates,
-                coverage=route.coverage,
-            )
+            run = await once(scenario, templates, i)
             run.label = label
             print(f"{scenario.name} #{i + 1}: {'pass' if run.passed else 'FAIL'}", flush=True)
             runs.append(run)
@@ -141,7 +164,26 @@ async def main() -> None:
     for name, (tin, tout) in sorted(meter.tokens.items()):
         print(f"\n{name}: {tin:,} tokens in, {tout:,} out")
     print(f"cost: ${meter.usd:.3f} (budget ${args.budget_usd:.2f})")
-    print(f"\nevery run: {save(runs, Path(args.out))}")
+    saved = save(runs, Path(args.out))
+    print(f"\nevery run: {saved}")
+    if url := os.environ.get(publish.ENV):
+        tokens = list(meter.tokens.values())
+        info = publish.RunInfo(
+            "eval",
+            "live" if args.live else "scripted",
+            started,
+            datetime.now(UTC),
+            label=label,
+            tokens_in=sum(t[0] for t in tokens),
+            tokens_out=sum(t[1] for t in tokens),
+            cost_usd=meter.usd,
+            source_key=f"eval:{saved.stem}",
+        )
+        try:
+            publish.publish_evals(url, runs, publish.here_and_now(info), {s.name: s.tags for s in scenarios})
+            print("published to the results database")
+        except Exception as e:  # the run is saved either way; `python -m evals.publish` can send it later
+            print(f"could not publish ({type(e).__name__}: {e}); the run is saved above")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 [project]
 name = "uriel"
-version = "0.1.0"
+version = "0.10.0"
 description = "Self-hosted family assistant: gateway and LangGraph agent with group-gated MCP tools"
 authors = [
     { name = "TonyHeadband", email = "41022017+TonyHeadband@users.noreply.github.com" }
@@ -19,6 +19,7 @@ dependencies = [
     "langchain-openai>=1.6.6,<2",
     "langgraph>=1.2.12,<2",
     "langgraph-checkpoint-postgres>=3.1.2,<4",
+    "ldap3>=2.9.1",
     "mcp>=1.30",
     "psycopg[binary,pool]>=3.3",
     "pydantic>=2.13",
@@ -27,6 +28,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "pyyaml>=6",
     "sse-starlette>=3.4",
+    "tzdata>=2026.1",
     "uvicorn[standard]>=0.35",
 ]
 
@@ -53,6 +55,9 @@ markers = [
   "db: needs Postgres (URIEL_TEST_DATABASE_URL)",
 ]
 addopts = "-m 'not e2e and not live'"
+filterwarnings = [
+  "ignore:(tagMap|typeMap) is deprecated:DeprecationWarning:ldap3",
+]
 
 [tool.ruff]
 line-length = 110

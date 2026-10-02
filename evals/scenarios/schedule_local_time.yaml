@@ -1,0 +1,27 @@
+name: schedule_local_time
+tags:
+- schedule
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  list_schedules:
+  - result:
+      schedules:
+      - schedule_id: 7
+        title: Formula 1 digest
+        when: every weekday at 9:00 (Toronto time)
+        next_run: '2026-09-30T13:00:00Z'
+        next_run_local: Wed 30 Sep 09:00 (Toronto time)
+turns:
+- say: When will the Formula 1 digest run next?
+  expect:
+    calls:
+    - list_schedules
+    reply:
+      contains:
+      - '9:00'
+      not_contains:
+      - '13:00'
+      - utc

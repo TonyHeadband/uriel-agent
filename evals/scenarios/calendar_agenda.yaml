@@ -1,0 +1,44 @@
+name: calendar_agenda
+tags:
+- calendar
+user:
+  name: kid
+  groups:
+  - family
+memory:
+  now: Tue 29 Sep 2026, 19:06 (America/Toronto)
+tool_results:
+  calendar_agenda:
+  - result:
+      from: Wed 30 Sep 2026
+      to: Wed 30 Sep 2026
+      tz: America/Toronto
+      items:
+      - item_id: e1
+        kind: event
+        title: Piano lesson
+        calendar: Personal
+        when: Wed 30 Sep 2026, 16:30–17:30
+        recurring: true
+      - item_id: t1
+        kind: task
+        title: Return library books
+        calendar: Personal
+        when: due Wed 30 Sep 2026, 18:00
+        recurring: false
+turns:
+- say: What's on my calendar tomorrow?
+  expect:
+    route: tools
+    calls:
+    - calendar_agenda
+    args:
+      calendar_agenda:
+        start: '2026-09-30'
+    reply:
+      matches: (16:30|4:30)
+      contains:
+      - piano
+      - library books
+      not_contains:
+      - UTC

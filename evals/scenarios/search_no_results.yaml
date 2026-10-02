@@ -1,0 +1,26 @@
+name: search_no_results
+tags:
+- search
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  web_search:
+  - result:
+      query: Homelab homelab gala 2026
+      results: []
+turns:
+- say: Is there any news about the Homelab homelab gala?
+  expect:
+    calls:
+    - web_search
+    reply:
+      not_contains:
+      - http
+      contains_any:
+      - couldn't find
+      - could not find
+      - didn't find
+      - no results
+      - nothing

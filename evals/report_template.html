@@ -132,7 +132,7 @@ summary { cursor: pointer; }
 <script>
 const DATA = /*REPORT_DATA*/null;
 const files = DATA.files;
-const CATS = ["route", "calls", "args", "reply"];
+const CATS = ["route", "calls", "args", "reply", "state"];
 const STEPS = 6;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

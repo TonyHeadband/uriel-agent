@@ -1,14 +1,24 @@
 import asyncio
+import re
 import uuid
 
 import pytest
-from langchain_core.messages import AIMessage
-from langchain_core.tools import tool
+from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.tools import StructuredTool, tool
 from langgraph.checkpoint.memory import InMemorySaver
 
-from tests.fakes import FailingChatModel, RecordingChatModel, ScriptedChatModel
+from tests.fakes import HIDDEN, FailingChatModel, RecordingChatModel, ScriptedChatModel
 from uriel.agent.decider import Decision
-from uriel.gateway.chat import NOT_LOOKED_UP, ChatService, ConversationNotFound, InvalidMessage
+from uriel.gateway.chat import (
+    EMPTY_ANSWER,
+    MISSING_TOOLS,
+    NOT_LOOKED_UP,
+    ChatService,
+    ConversationNotFound,
+    InvalidMessage,
+    TurnResult,
+    collect,
+)
 from uriel.principal import Principal
 
 DAD = Principal("dad", frozenset({"admins"}), "human")
@@ -48,10 +58,13 @@ class Toolbox:
         return self.tools
 
 
-def service(model, *, tools=(), toolbox=None, decider=None, max_chars=100, tool_model=None):
+def service(
+    model, *, tools=(), toolbox=None, decider=None, max_chars=100, tool_model=None, background_model=None
+):
     return ChatService(
         chat_model=model,
         tool_model=tool_model,
+        background_model=background_model,
         decider=decider or Decider(),
         toolbox=toolbox or Toolbox(list(tools)),
         checkpointer=InMemorySaver(),
@@ -160,12 +173,142 @@ async def test_memory_reaches_the_prompt_and_is_not_a_model_tool():
     @tool
     def memory_context() -> str:
         """Memory."""
-        return '{"user": "# About Tony\\n## Name\\n- Tony", "soul": ""}'
+        return (
+            '{"user": "# About Tony\\n## Name\\n- Tony", "soul": "", '
+            '"tz": "America/Toronto", "now_local": "Tue 29 Sep 2026, 22:41"}'
+        )
+
+    memory_context.metadata = HIDDEN
 
     model = RecordingChatModel(messages=iter([AIMessage("Hi Tony.")]))
     _, events = await run(service(model, tools=[memory_context]), KID, "hi")
     system = str(model.seen[0][0].content)
     assert "What you know about this person:\n# About Tony" in system
+    # Probe 2026-09-29: without today's date, qwen3:8b scheduled "remind me" for 2023.
+    assert "It is now Tue 29 Sep 2026, 22:41 (America/Toronto)." in system
     assert "How this person wants you to talk" not in system
     # Loading memory is not a lookup, and with no other tools there is nothing to say about lookups.
     assert all(e.data != NOT_LOOKED_UP for e in events)
+
+
+async def test_a_tool_marked_hidden_is_never_bound_even_by_name_unknown_to_the_gateway():
+    @tool
+    def claim_due_runs() -> str:
+        """Runner only."""
+        return "[]"
+
+    claim_due_runs.metadata = HIDDEN
+    model = RecordingChatModel(messages=iter([AIMessage("Hi.")]))
+    await run(service(model, tools=[homelab_status, claim_due_runs], decider=Decider("tools")), DAD, "hi")
+    assert model.bound == [["homelab_status"]]
+
+
+def meta_tool(name, **flags):
+    """A tool as McpToolbox returns it, with uriel-tools' `_meta.uriel` flags (hidden, unattended)."""
+
+    async def run() -> str:
+        return f"{name} ran"
+
+    metadata = {"_meta": {"uriel": flags}}
+    return StructuredTool.from_function(coroutine=run, name=name, description=name, metadata=metadata)
+
+
+async def test_a_thread_turn_keeps_its_own_thread_and_can_skip_memory():
+    @tool
+    def memory_context() -> str:
+        """Memory."""
+        raise AssertionError("a shared room must not load personal memory")
+
+    memory_context.metadata = HIDDEN
+    model = RecordingChatModel(messages=iter([AIMessage("Hi all.")]))
+    svc = service(model, tools=[memory_context])
+    turn = svc.thread_turn(DAD, "room:talk-family", " hi ", personal=False, note="Everyone can read this.")
+    result = await collect(svc.stream(turn))
+    assert (turn.text, turn.thread_id, result.answer) == ("hi", "room:talk-family", "Hi all.")
+    assert "Everyone can read this." in str(model.seen[0][0].content)
+    assert re.search(
+        r"It is now \w{3} \d{1,2} \w{3} \d{4}, \d{2}:\d{2} \(UTC\)\.", str(model.seen[0][0].content)
+    )
+    assert await svc._checkpointer.aget_tuple({"configurable": {"thread_id": "room:talk-family"}})
+
+
+@pytest.mark.parametrize("text", ["", "   ", "x" * 101])
+def test_thread_turns_are_validated_like_web_turns(text):
+    with pytest.raises(InvalidMessage):
+        service(ScriptedChatModel(messages=iter([]))).thread_turn(DAD, "dad:talk-x", text)
+
+
+async def test_a_scheduled_turn_offers_only_its_unattended_tools_on_the_background_model():
+    background = RecordingChatModel(messages=iter([AIMessage("Digest.")]))
+    tools = [
+        meta_tool("web_search", unattended=True),
+        meta_tool("search_documents", unattended=True),
+        meta_tool("remember"),
+    ]
+    svc = service(
+        ScriptedChatModel(messages=iter([])),
+        tools=tools,
+        decider=Decider("tools"),
+        background_model=background,
+    )
+    turn = svc.thread_turn(
+        KID, "kid:talk-dm", "Scheduled task", tools=frozenset({"web_search"}), background=True
+    )
+    result = await collect(svc.stream(turn))
+    assert result.answer == "Digest."
+    assert background.bound == [["web_search"]]
+
+
+async def test_a_scheduled_turn_fails_when_a_tool_cant_run_unattended():
+    background = RecordingChatModel(messages=iter([]))
+    tools = [meta_tool("web_search", unattended=True), meta_tool("remember")]
+    svc = service(ScriptedChatModel(messages=iter([])), tools=tools, background_model=background)
+    wanted = frozenset({"web_search", "remember", "gone"})
+    result = await collect(
+        svc.stream(svc.thread_turn(KID, "kid:t", "Scheduled task", tools=wanted, background=True))
+    )
+    assert result.error == MISSING_TOOLS.format(names="gone, remember", user="kid")
+    assert background.seen == []
+
+
+def test_a_turn_result_reads_as_one_chat_message():
+    assert TurnResult("Answer.", [NOT_LOOKED_UP]).message() == f"Answer.\n\n_{NOT_LOOKED_UP}_"
+    assert (
+        TurnResult(" ", ["Tools are unavailable."]).message() == f"{EMPTY_ANSWER}\n\n_Tools are unavailable._"
+    )
+
+
+async def test_an_unflagged_memory_context_is_loaded_but_never_bound():
+    @tool
+    def memory_context() -> str:
+        """Memory, as uriel-tools before 0.8.0 lists it: no hidden flag."""
+        return '{"user": "# About Tony", "soul": ""}'
+
+    model = RecordingChatModel(messages=iter([AIMessage("Hi.")]))
+    await run(service(model, tools=[homelab_status, memory_context], decider=Decider("tools")), KID, "hi")
+    assert model.bound == [["homelab_status"]]
+    assert "# About Tony" in str(model.seen[0][0].content)
+
+
+async def test_a_turn_cancelled_mid_tool_call_leaves_the_next_turn_a_clean_history():
+    ran = []
+
+    @tool
+    async def slow_search(query: str) -> str:
+        """Search, slowly."""
+        ran.append(query)
+        await asyncio.Event().wait()
+        return ""
+
+    call = {"name": "slow_search", "args": {"query": "x"}, "id": "c1"}
+    model = RecordingChatModel(messages=iter([AIMessage("", tool_calls=[call]), AIMessage("Back.")]))
+    svc = service(model, tools=[slow_search], decider=Decider("tools"))
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.3):
+            await collect(svc.stream(svc.thread_turn(KID, "kid:talk-dm", "search x")))
+    result = await asyncio.wait_for(collect(svc.stream(svc.thread_turn(KID, "kid:talk-dm", "hello?"))), 5)
+    assert (result.error, result.answer) == (None, "Back.")
+    assert ran == ["x"]  # the abandoned call isn't run again
+    seen = model.seen[-1]
+    assert not any(getattr(m, "tool_calls", None) or isinstance(m, ToolMessage) for m in seen)
+    assert [m.content for m in seen[1:]] == ["search x", "hello?"]

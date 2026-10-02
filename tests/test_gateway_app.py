@@ -1,5 +1,7 @@
 import asyncio
+import contextlib
 import hashlib
+import json
 import uuid
 
 import pytest
@@ -13,7 +15,8 @@ from tests.fakes import ScriptedChatModel
 from tests.test_chat import MemoryConversations, Toolbox
 from uriel.agent.decider import Decision
 from uriel.config import GatewaySettings
-from uriel.gateway.app import Services, create_app
+from uriel.gateway import app as app_module
+from uriel.gateway.app import Coworker, Services, build_coworker, create_app, run_coworker
 from uriel.gateway.auth import ServiceKeys, _ServiceKey
 from uriel.gateway.chat import ChatService
 from uriel.principal import Principal
@@ -27,6 +30,9 @@ KID = Principal("kid", frozenset({"family"}), "service")
 def homelab_status() -> str:
     """Homelab."""
     return "homelab ready"
+
+
+homelab_status.metadata = {"_meta": {"uriel": {"category": "homelab", "companion_action": "lookup"}}}
 
 
 class Decider:
@@ -265,9 +271,9 @@ def test_invalid_api_key_fails_closed_even_with_a_valid_session():
     assert r.status_code == 401
 
 
-def _looping_chat_service(recursion_limit):
+def _looping_chat_service(recursion_limit, said=""):
     call = {"name": "homelab_status", "args": {}}
-    loop = [AIMessage("", tool_calls=[call | {"id": f"c{i}"}]) for i in range(30)]
+    loop = [AIMessage(said, tool_calls=[call | {"id": f"c{i}"}]) for i in range(30)]
     return ChatService(
         chat_model=ScriptedChatModel(messages=iter(loop)),
         decider=Decider(),
@@ -420,3 +426,270 @@ async def test_gateway_refuses_a_hosted_model_before_touching_anything(tmp_path,
     async with contextlib.AsyncExitStack() as stack:
         with pytest.raises(RuntimeError, match="outside the house network \\(gemini\\)"):
             await _build_services(settings, stack)  # database_url is unusable: it must fail before the pool
+
+
+COWORKER = {
+    "nc_url": "https://cloud.example",
+    "nc_app_password": "p",
+    "ldap_url": "ldap://lldap:3890",
+    "ldap_bind_dn": "uid=uriel-gateway,ou=people,dc=example,dc=com",
+    "ldap_password": "p",
+    "ldap_base_dn": "dc=example,dc=com",
+}
+
+
+def test_the_coworker_is_off_unless_enabled():
+    assert build_coworker(SETTINGS, chat=None, pool=None, toolbox=None) is None
+
+
+@pytest.mark.parametrize(("talk", "runner"), [(True, False), (False, True), (True, True)])
+async def test_the_coworker_starts_only_what_is_enabled(talk, runner):
+    settings = SETTINGS.model_copy(update=COWORKER | {"talk_enabled": talk, "runner_enabled": runner})
+    coworker = build_coworker(settings, chat=object(), pool=object(), toolbox=object())
+    try:
+        assert isinstance(coworker, Coworker)
+        assert (coworker.channel is not None, coworker.runner is not None) == (talk, runner)
+    finally:
+        await coworker.talk.aclose()
+
+
+class Polling:
+    """A Talk channel whose poll loop runs until cancelled and whose room turns finish on drain."""
+
+    def __init__(self, events):
+        self.events = events
+        self.cancelled = False
+
+    async def run(self):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled = True
+            self.events.append("poll cancelled")
+            raise
+
+    def close(self):
+        self.events.append("close")
+
+    def stop(self):
+        self.events.append("stop")
+
+    async def drain(self):
+        self.events.append("drain")
+
+
+class Running:
+    """A runner in the middle of a run: it returns once stopped and its run is done."""
+
+    def __init__(self, events):
+        self.events = events
+        self.stopped = asyncio.Event()
+
+    async def run(self):
+        await self.stopped.wait()
+        self.events.append("run finished")
+
+    def stop(self):
+        self.events.append("runner stop")
+        self.stopped.set()
+
+
+class ClosingTalk:
+    def __init__(self, events):
+        self.events = events
+
+    async def aclose(self):
+        self.events.append("talk closed")
+
+
+async def test_shutdown_stops_taking_work_then_lets_turns_in_flight_finish_and_closes_talk():
+    events = []
+    channel, runner = Polling(events), Running(events)
+    coworker = Coworker(ClosingTalk(events), channel, runner)
+    async with contextlib.AsyncExitStack() as stack:
+        run_coworker(stack, coworker)
+        await asyncio.sleep(0)
+    assert channel.cancelled
+    assert events.index("close") < events.index("drain")
+    assert events.index("runner stop") < events.index("run finished")
+    assert events[-1] == "talk closed"
+
+
+async def test_shutdown_cancels_what_is_still_running_after_the_grace(monkeypatch):
+    monkeypatch.setattr(app_module, "SHUTDOWN_GRACE_S", 0.05)
+
+    class Stuck(Running):
+        def stop(self):
+            self.events.append("runner stop")  # and never finishes
+
+    events = []
+    runner = Stuck(events)
+
+    async def shut_down():
+        async with contextlib.AsyncExitStack() as stack:
+            run_coworker(stack, Coworker(ClosingTalk(events), None, runner))
+            await asyncio.sleep(0)
+
+    await asyncio.wait_for(shut_down(), 2)
+    assert "run finished" not in events and events[-1] == "talk closed"
+
+
+async def test_the_coworker_serves_only_the_configured_member_groups():
+    settings = SETTINGS.model_copy(
+        update=COWORKER | {"talk_enabled": True, "runner_enabled": True, "member_groups": ["family", "gran"]}
+    )
+    coworker = build_coworker(settings, chat=object(), pool=object(), toolbox=object())
+    try:
+        assert coworker.channel._members == coworker.runner._members == {"family", "gran"}
+    finally:
+        await coworker.talk.aclose()
+
+
+def sse_events(text):
+    """(event, data) pairs from a raw SSE body; sse-starlette separates lines with CRLF."""
+    out = []
+    for block in text.replace("\r\n", "\n").split("\n\n"):
+        lines = [ln for ln in block.split("\n") if ln and not ln.startswith(":")]
+        if not lines:
+            continue
+        event = next(ln[len("event: ") :] for ln in lines if ln.startswith("event: "))
+        data = "\n".join(ln[len("data: ") :] for ln in lines if ln.startswith("data: "))
+        out.append((event, json.loads(data)))
+    return out
+
+
+def stream(c, body, key=ADMIN_KEY):
+    return c.post("/v1/chat/stream", json=body, headers={"X-API-Key": key})
+
+
+def test_stream_tool_turn_sends_start_tool_tokens_done():
+    c = make_client(
+        [
+            AIMessage("", tool_calls=[{"name": "homelab_status", "args": {}, "id": "c1"}]),
+            AIMessage("Homelab is ready."),
+        ]
+    )
+    r = stream(c, {"message": "homelab?"})
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
+    events = sse_events(r.text)
+    names = [e for e, _ in events]
+    assert names[0] == "start" and names[-1] == "done"
+    tags = {"name": "homelab_status", "category": "homelab", "companion_action": "lookup"}
+    assert ("tool_call", tags) in events
+    assert ("tool_result", tags | {"status": "success", "awaiting": False}) in events
+    assert names.index("tool_call") < names.index("tool_result") < names.index("token")
+    assert "".join(d["text"] for e, d in events if e == "token") == "Homelab is ready."
+    assert "final" not in names  # tokens already carried the text
+    cid = events[0][1]["conversation_id"]
+    msgs = c.get(f"/v1/conversations/{cid}/messages", headers={"X-API-Key": ADMIN_KEY}).json()
+    assert [m["role"] for m in msgs] == ["user", "tool", "assistant"]
+
+
+def test_stream_continues_an_existing_conversation():
+    c = make_client([AIMessage("one"), AIMessage("two")])
+    cid = sse_events(stream(c, {"message": "a"}).text)[0][1]["conversation_id"]
+    second = sse_events(stream(c, {"message": "b", "conversation_id": cid}).text)
+    assert second[0] == ("start", {"conversation_id": cid})
+
+
+def test_stream_requires_auth_and_validates_like_chat():
+    c = make_client([AIMessage("hello")])
+    assert c.post("/v1/chat/stream", json={"message": "hi"}).status_code == 401
+    assert stream(c, {"message": "  "}).status_code == 422
+    first = c.post("/v1/chat", json={"message": "hi"}, headers={"X-API-Key": ADMIN_KEY})
+    cid = first.json()["conversation_id"]
+    assert stream(c, {"message": "hi", "conversation_id": cid}, key=FAMILY_KEY).status_code == 404
+
+
+def test_stream_error_ends_with_done_and_releases_the_session_in_its_own_task():
+    toolbox = TrackingToolbox([homelab_status])
+    chat = ChatService(
+        chat_model=FlakyChatModel(messages=iter([AIMessage("Back online.")])),
+        decider=Decider(),
+        toolbox=toolbox,
+        checkpointer=InMemorySaver(),
+        conversations=MemoryConversations(),
+        decision_log=None,
+        recursion_limit=10,
+        max_message_chars=50,
+    )
+    keys = ServiceKeys([_ServiceKey(hashlib.sha256(ADMIN_KEY.encode()).hexdigest(), ADMIN)])
+    c = TestClient(create_app(SETTINGS, Services(chat=chat, keys=keys, verifier=None, oauth=FakeOAuth({}))))
+    cid = str(uuid.uuid4())
+    events = sse_events(stream(c, {"message": "hi", "conversation_id": cid}).text)
+    assert [e for e, _ in events][-2:] == ["error", "done"]
+    assert "unavailable" in events[-2][1]["message"]
+    assert toolbox.closed is True and toolbox.exit_task is toolbox.enter_task
+    again = sse_events(stream(c, {"message": "hi again", "conversation_id": cid}).text)
+    assert "".join(d["text"] for e, d in again if e == "token") == "Back online."
+
+
+def test_stream_sends_final_when_no_tokens_were_streamed():
+    keys = ServiceKeys([_ServiceKey(hashlib.sha256(ADMIN_KEY.encode()).hexdigest(), ADMIN)])
+    services = Services(chat=_looping_chat_service(4), keys=keys, verifier=None, oauth=FakeOAuth({}))
+    events = sse_events(stream(TestClient(create_app(SETTINGS, services)), {"message": "loop"}).text)
+    finals = [d["text"] for e, d in events if e == "final"]
+    assert len(finals) == 1 and "couldn't finish" in finals[0]
+    assert "".join(d["text"] for e, d in events if e == "token") == ""
+    assert events[-1] == ("done", {})
+
+
+def test_stream_notices_carry_a_code():
+    c = make_client([AIMessage("Hi.")])
+    events = sse_events(stream(c, {"message": "hello"}).text)
+    assert ("notice", {"text": "Nothing was looked up for this answer.", "code": "not_looked_up"}) in events
+
+
+def test_stream_still_says_it_couldnt_finish_after_streamed_tokens():
+    keys = ServiceKeys([_ServiceKey(hashlib.sha256(ADMIN_KEY.encode()).hexdigest(), ADMIN)])
+    services = Services(
+        chat=_looping_chat_service(4, "Checking."), keys=keys, verifier=None, oauth=FakeOAuth({})
+    )
+    events = sse_events(stream(TestClient(create_app(SETTINGS, services)), {"message": "loop"}).text)
+    said = "".join(d["text"] for e, d in events if e == "token")
+    assert said.startswith("Checking.") and said.endswith(
+        "\n\nI couldn't finish that in a reasonable number of steps. Try rephrasing?"
+    )
+    assert "final" not in [e for e, _ in events]
+
+
+def test_web_chat_still_says_it_couldnt_finish_after_streamed_tokens():
+    keys = ServiceKeys([_ServiceKey(hashlib.sha256(ADMIN_KEY.encode()).hexdigest(), ADMIN)])
+    claims = {"preferred_username": "dad", "groups": ["admins", "family"]}
+    services = Services(
+        chat=_looping_chat_service(4, "Checking."), keys=keys, verifier=None, oauth=FakeOAuth(claims)
+    )
+    c = TestClient(create_app(SETTINGS, services))
+    assert c.get("/auth/callback", follow_redirects=False).status_code == 303
+    frag = c.post("/chat", data={"conversation_id": str(uuid.uuid4()), "message": "loop"})
+    turn_id = frag.text.split('sse-connect="/chat/stream/')[1].split('"')[0]
+    body = c.get(f"/chat/stream/{turn_id}").text
+    assert "Checking." in body and "reasonable number of steps" in body
+
+
+def test_stream_data_is_not_html_escaped():
+    c = make_client([AIMessage("1 < 2 & <b>bold</b>")])
+    events = sse_events(stream(c, {"message": "x"}).text)
+    assert "".join(d["text"] for e, d in events if e == "token") == "1 < 2 & <b>bold</b>"
+
+
+CORS_SETTINGS = SETTINGS.model_copy(update={"cors_origins": ["tauri://localhost"]})
+
+
+def test_cors_preflight_is_allowed_for_the_companion_origin_only():
+    c = make_client([], settings=CORS_SETTINGS)
+    pre = {
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type",
+    }
+    ok = c.options("/v1/chat/stream", headers={"Origin": "tauri://localhost", **pre})
+    assert ok.headers.get("access-control-allow-origin") == "tauri://localhost"
+    # Bearer tokens only: the session cookie must never be usable cross-origin.
+    assert "access-control-allow-credentials" not in ok.headers
+    other = c.options("/v1/chat/stream", headers={"Origin": "https://evil.example", **pre})
+    assert "access-control-allow-origin" not in other.headers
+
+
+def test_no_cors_headers_without_configured_origins():
+    r = make_client([]).get("/livez", headers={"Origin": "tauri://localhost"})
+    assert "access-control-allow-origin" not in r.headers

@@ -1,0 +1,47 @@
+name: sign_needs_yes
+tags:
+- signing
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  inspect_document:
+  - result:
+      path: /Documents/Scuola/modulo.pdf
+      fields: []
+      signature_fields:
+      - name: firma
+        page: 2
+      editable: true
+  preview_signature:
+  - result:
+      draft_id: d1
+      would_place: signature box 'firma' on page 2
+      next: Nothing has been saved. Show the person where the signature would go and call place_signature with
+        this draft_id only after they say yes. If they want it elsewhere, preview again.
+  place_signature:
+  - when:
+      draft_id: d1
+    result:
+      saved: /Documents/Scuola/edit_modulo.pdf
+      url: https://cloud.example.com/f/123
+      done:
+      - signature in 'firma'
+      note: Saved as a new file next to the original; the original is unchanged. Review it in Nextcloud before
+        use.
+  - error: 'no such preview (it may have expired): call preview_signature again and show it'
+turns:
+- say: Please sign /Documents/Scuola/modulo.pdf for me.
+  expect:
+    calls:
+    - preview_signature
+    not_calls:
+    - place_signature
+- say: Yes, go ahead.
+  expect:
+    calls:
+    - place_signature
+    args:
+      place_signature:
+        draft_id: d1

@@ -1,6 +1,6 @@
 from langchain_core.tools import ToolException, tool
 
-from uriel.agent.memory import Memory, split_memory
+from uriel.agent.memory import Memory, load_memory
 
 
 @tool
@@ -23,9 +23,8 @@ def test_memory_prompt_wording():
     assert "How this person" not in Memory(user="# About Tony").prompt()
 
 
-async def test_without_the_memory_tool_nothing_changes():
-    tools, memory = await split_memory([homelab_status])
-    assert tools == [homelab_status] and memory == Memory()
+async def test_without_the_memory_tool_there_is_no_memory():
+    assert await load_memory([homelab_status]) == Memory()
 
 
 async def test_failing_memory_tool_is_survived():
@@ -34,8 +33,7 @@ async def test_failing_memory_tool_is_survived():
         """Memory."""
         raise ToolException("memory is unavailable right now")
 
-    tools, memory = await split_memory([homelab_status, memory_context])
-    assert [t.name for t in tools] == ["homelab_status"] and memory == Memory()
+    assert await load_memory([homelab_status, memory_context]) == Memory()
 
 
 async def test_unreadable_memory_is_survived():
@@ -44,4 +42,13 @@ async def test_unreadable_memory_is_survived():
         """Memory."""
         return "not json"
 
-    assert (await split_memory([memory_context]))[1] == Memory()
+    assert await load_memory([memory_context]) == Memory()
+
+
+async def test_the_persons_local_time_is_loaded_with_their_memory():
+    @tool
+    def memory_context() -> str:
+        """Memory."""
+        return '{"user": "", "soul": "", "tz": "America/Toronto", "now_local": "Tue 29 Sep 2026, 22:41"}'
+
+    assert await load_memory([memory_context]) == Memory(now="Tue 29 Sep 2026, 22:41 (America/Toronto)")

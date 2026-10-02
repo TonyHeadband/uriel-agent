@@ -100,11 +100,31 @@ def test_gateway_settings_read_env(monkeypatch):
         "URIEL_OIDC_CLIENT_SECRET": "s",
         "URIEL_SESSION_SECRET": "x" * 32,
         "URIEL_PUBLIC_URL": "https://uriel.example",
+        "URIEL_OIDC_EXTRA_AUDIENCES": '["uriel-companion"]',
+        "URIEL_CORS_ORIGINS": '["tauri://localhost"]',
     }.items():
         monkeypatch.setenv(k, v)
     s = GatewaySettings()
     assert s.cookie_secure is True
     assert s.max_message_chars == 8000
+    assert s.oidc_extra_audiences == ["uriel-companion"]
+    assert s.cors_origins == ["tauri://localhost"]
+
+
+def test_companion_settings_default_to_empty(monkeypatch):
+    for k, v in {
+        "URIEL_DATABASE_URL": "postgresql://u:p@db/uriel",
+        "URIEL_MCP_URL": "http://mcp:8001/mcp",
+        "URIEL_MCP_API_KEY": "k",
+        "URIEL_OIDC_ISSUER": "https://auth.example",
+        "URIEL_OIDC_CLIENT_ID": "uriel",
+        "URIEL_OIDC_CLIENT_SECRET": "s",
+        "URIEL_SESSION_SECRET": "x" * 32,
+        "URIEL_PUBLIC_URL": "https://uriel.example",
+    }.items():
+        monkeypatch.setenv(k, v)
+    s = GatewaySettings()
+    assert (s.oidc_extra_audiences, s.cors_origins) == ([], [])
 
 
 def _models(base_url: str, **spec) -> ModelsConfig:
@@ -167,3 +187,47 @@ def test_shipped_model_configs_stay_in_the_house():
         cfg = load_yaml(ModelsConfig, ROOT / "config" / name)
         # Hosted models need a key; the house's Ollama doesn't. Hosts are checked when the gateway starts.
         assert not [m for m in cfg.models.values() if m.api_key_env], name
+
+
+BASE = dict(
+    database_url="postgresql://unused",
+    mcp_url="http://unused",
+    mcp_api_key="k",
+    oidc_issuer="https://auth.example",
+    oidc_client_id="uriel",
+    oidc_client_secret="s",
+    session_secret="s" * 32,
+    public_url="http://testserver",
+)
+COWORKER = dict(
+    nc_url="https://cloud.example",
+    nc_app_password="p",
+    ldap_url="ldap://lldap:3890",
+    ldap_bind_dn="uid=uriel-gateway,ou=people,dc=example,dc=com",
+    ldap_password="p",
+    ldap_base_dn="dc=example,dc=com",
+)
+
+
+def test_talk_and_runner_are_off_by_default_and_need_nothing_more():
+    s = GatewaySettings(**BASE)
+    assert (s.talk_enabled, s.runner_enabled) == (False, False)
+    assert (s.talk_poll_seconds, s.talk_history_turns, s.runner_seconds) == (3.0, 20, 30.0)
+
+
+@pytest.mark.parametrize("flag", ["talk_enabled", "runner_enabled"])
+def test_talk_or_runner_need_nextcloud_and_lldap(flag):
+    with pytest.raises(ValidationError, match="URIEL_NC_URL.*URIEL_LDAP_BASE_DN"):
+        GatewaySettings(**BASE, **{flag: True})
+    # Compose passes an unset variable as an empty string.
+    with pytest.raises(ValidationError, match="URIEL_LDAP_PASSWORD"):
+        GatewaySettings(**BASE, **(COWORKER | {"ldap_password": ""}), **{flag: True})
+    assert getattr(GatewaySettings(**BASE, **COWORKER, **{flag: True}), flag)
+
+
+def test_member_groups_default_to_family_and_read_env(monkeypatch):
+    assert GatewaySettings(**BASE).member_groups == ["family"]
+    monkeypatch.setenv("URIEL_MEMBER_GROUPS", '["family", "grandparents"]')
+    assert GatewaySettings(**BASE).member_groups == ["family", "grandparents"]
+    with pytest.raises(ValidationError):
+        GatewaySettings(**BASE, member_groups=[])

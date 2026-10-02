@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 
-from uriel.gateway.chat import ConversationNotFound, InvalidMessage, Turn
+from uriel.gateway.chat import UNFINISHED, ConversationNotFound, InvalidMessage, Turn
 from uriel.principal import Principal
 
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -86,7 +86,7 @@ def build_router() -> APIRouter:
         async def events():
             # A successful turn already streamed its answer as "token" chunks, so its trailing
             # "final" (the same text in full) is redundant and must not be rendered twice. A
-            # recursion-abort "final" has no such tokens, so it's the only text for that turn.
+            # recursion-abort "final" is new text, whether or not tokens came before it.
             streamed_tokens = False
 
             async for e in svc.stream(turn):
@@ -97,6 +97,9 @@ def build_router() -> APIRouter:
                     case "final":
                         if not streamed_tokens:
                             yield {"event": "token", "data": html.escape(str(e.data))}
+                        elif e.data == UNFINISHED:
+                            # The turn stopped after part of an answer: say so after it, not instead of it.
+                            yield {"event": "token", "data": html.escape(f"\n\n{UNFINISHED}")}
                     case "tool_call":
                         name = html.escape(e.data["name"])
                         yield {"event": "tool", "data": f'<span class="status">used {name}</span>'}

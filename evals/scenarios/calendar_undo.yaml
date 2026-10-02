@@ -1,0 +1,39 @@
+name: calendar_undo
+tags:
+- calendar
+user:
+  name: kid
+  groups:
+  - family
+memory:
+  now: Tue 29 Sep 2026, 19:06 (America/Toronto)
+tool_results:
+  add_reminder:
+  - result:
+      added: reminder
+      title: Call the dentist
+      calendar: Personal
+      due_local: Thu 1 Oct 2026, 15:00
+      item_id: r1
+      note: Tell the person what you added, where and when; offer to undo it (draft_calendar_change,
+        delete).
+  draft_calendar_change:
+  - result:
+      deleted: true
+      title: Call the dentist
+      calendar: Personal
+turns:
+- say: Remind me to call the dentist Thursday at 3pm.
+  expect:
+    calls:
+    - add_reminder
+- say: No, undo that.
+  expect:
+    calls:
+    - draft_calendar_change
+    not_calls:
+    - confirm_calendar_change
+    args:
+      draft_calendar_change:
+        action: delete
+        item_id: r1

@@ -1,20 +1,21 @@
 """The person's USER.md and SOUL.md from uriel-tools, loaded once per turn into the system prompt."""
 
-import json
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 from langchain_core.tools import BaseTool
 
+from uriel.agent.mcp_tools import MEMORY_TOOL, call_json
+
 log = logging.getLogger(__name__)
-MEMORY_TOOL = "memory_context"
 
 
 @dataclass(frozen=True)
 class Memory:
     user: str = ""
     soul: str = ""
+    now: str = ""  # the person's local time, e.g. "Tue 29 Sep 2026, 22:41 (America/Toronto)"
 
     def prompt(self) -> str:
         parts = []
@@ -29,19 +30,16 @@ class Memory:
         return "\n\n".join(parts)
 
 
-async def split_memory(tools: Sequence[BaseTool]) -> tuple[list[BaseTool], Memory]:
-    """Take memory_context out of the model's tools and call it: the gateway loads memory, the model never
-    does. It goes through the same identity interceptor as any tool call."""
-    rest = [t for t in tools if t.name != MEMORY_TOOL]
+async def load_memory(tools: Sequence[BaseTool]) -> Memory:
+    """Call memory_context: the gateway loads memory, the model never does (uriel-tools marks the tool hidden,
+    and `visible` keeps it from the model). It goes through the same identity interceptor as any tool call."""
     loader = next((t for t in tools if t.name == MEMORY_TOOL), None)
     if loader is None:
-        return rest, Memory()
+        return Memory()
     try:
-        content = await loader.ainvoke({})
-        # MCP tools return content blocks (probe 2026-09-28); plain langchain tools return the string.
-        text = content if isinstance(content, str) else "".join(b.get("text", "") for b in content)
-        data = json.loads(text)
-        return rest, Memory(data.get("user", ""), data.get("soul", ""))
+        data = await call_json(loader, {}) or {}
+        now = f"{data['now_local']} ({data['tz']})" if data.get("now_local") and data.get("tz") else ""
+        return Memory(data.get("user", ""), data.get("soul", ""), now)
     except Exception:
         log.warning("could not load memory; answering without it", exc_info=True)
-        return rest, Memory()
+        return Memory()

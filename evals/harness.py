@@ -3,6 +3,9 @@
 The graph, prompt and router are the gateway's own. Tool names, descriptions and schemas are the ones
 uriel-tools lists, so a docstring change there is measured here; but every call is answered from the
 scenario's scripted results, so nothing is filed, edited or signed and runs are repeatable.
+
+A live scenario instead calls a real uriel-tools, as a throwaway user, and checks what the turns left behind
+by calling tools again afterwards (show_memory after "remember that…").
 """
 
 import json
@@ -14,11 +17,12 @@ from typing import Any
 
 from langchain_core.tools import BaseTool, StructuredTool, ToolException
 from langgraph.checkpoint.memory import InMemorySaver
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from uriel.agent.events import stream_graph
 from uriel.agent.graph import RunContext, build_graph
-from uriel.agent.memory import MEMORY_TOOL, Memory
+from uriel.agent.mcp_tools import call_json, visible
+from uriel.agent.memory import Memory, load_memory
 from uriel.principal import Principal
 
 # A rule is a literal (compared for equality) or a dict of string checks, all case-insensitive.
@@ -54,20 +58,43 @@ class Turn(BaseModel):
     expect: Expect = Field(default_factory=Expect)
 
 
+class ToolCall(BaseModel):
+    tool: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class StateCheck(ToolCall):
+    expect: Rule  # matched against the result's JSON
+
+
 class Scenario(BaseModel):
     name: str
     tags: list[str] = Field(default_factory=list)  # the area it covers: run only what a change touches
     user: User
-    # The person's USER.md and SOUL.md, as the gateway loads them: {"user": ..., "soul": ...}.
+    # The person's USER.md, SOUL.md and local time, as the gateway loads them: {"user", "soul", "now"}, with
+    # "now" like "Tue 29 Sep 2026, 19:06 (America/Toronto)"; without it the prompt has the real time in UTC.
     memory: dict[str, str] = Field(default_factory=dict)
     tool_results: dict[str, list[ScriptedResult]] = Field(default_factory=dict)
     turns: list[Turn]
+    # Live only: run against a real uriel-tools. `setup` calls seed the throwaway user's state before the
+    # turns; `after` calls read it back once they're done.
+    live: bool = False
+    setup: list[ToolCall] = Field(default_factory=list)
+    after: list[StateCheck] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _live_or_scripted(self):
+        if self.live and (self.tool_results or self.memory):
+            raise ValueError("a live scenario gets tool results and memory from uriel-tools: use setup")
+        if not self.live and (self.setup or self.after):
+            raise ValueError("setup and after need a live scenario")
+        return self
 
 
 @dataclass
 class Check:
     turn: int
-    category: str  # route, calls, args, reply, error
+    category: str  # route, calls, args, reply, state, error
     ok: bool
     detail: str
 
@@ -157,6 +184,44 @@ def scripted_tools(templates: list[BaseTool], results: dict[str, list[ScriptedRe
     return [make(t) for t in templates]
 
 
+def recording(tools: list[BaseTool], calls: list[dict]) -> list[BaseTool]:
+    """The real tools, each recording its call before making it."""
+
+    def make(t: BaseTool) -> BaseTool:
+        async def forward(**args):
+            calls.append({"name": t.name, "args": args})
+            return await t.ainvoke(args)
+
+        return StructuredTool(
+            name=t.name,
+            description=t.description,
+            args_schema=t.args_schema,
+            coroutine=forward,
+            metadata=t.metadata,
+        )
+
+    return [make(t) for t in tools]
+
+
+def _by_name(tools: list[BaseTool], name: str) -> BaseTool:
+    found = next((t for t in tools if t.name == name), None)
+    if found is None:
+        raise ValueError(f"uriel-tools doesn't list {name} for this user")
+    return found
+
+
+async def _check_state(i: int, checks: list[StateCheck], tools: list[BaseTool]) -> list[Check]:
+    out = []
+    for c in checks:
+        try:
+            result = json.dumps(await call_json(_by_name(tools, c.tool), c.args))
+            why = match(result, c.expect)
+        except Exception as e:
+            why = f"{type(e).__name__}: {e}"
+        out.append(Check(i, "state", why is None, f"{c.tool} {why or 'ok'}"))
+    return out
+
+
 def _check(i: int, expect: Expect, turn: TurnRun) -> list[Check]:
     out = []
     if turn.error:
@@ -197,26 +262,38 @@ async def run_scenario(
     tool_model=None,
     recursion_limit=10,
     coverage: float | None = None,
+    live_tools: list[BaseTool] | None = None,
+    principal: Principal | None = None,
 ) -> Run:
-    principal = Principal(scenario.user.name, frozenset(scenario.user.groups), "human")
+    """Scripted, or live with live_tools: a real uriel-tools session opened as principal."""
+    principal = principal or principal_for(scenario)
     thread = f"{principal.user_id}:eval-{uuid.uuid4().hex[:8]}"
     config = {"configurable": {"thread_id": thread}, "recursion_limit": recursion_limit}
     calls: list[dict] = []
-    # As the gateway does (split_memory): memory goes into the prompt, never to the model as a tool.
-    templates = [t for t in templates if t.name != MEMORY_TOOL]
-    memory = Memory(scenario.memory.get("user", ""), scenario.memory.get("soul", ""))
+    if live_tools is not None:
+        for c in scenario.setup:
+            await call_json(_by_name(live_tools, c.tool), c.args)
+        tools = recording(visible(live_tools), calls)
+    else:
+        # As the gateway does: hidden tools (memory_context, the runner's) never reach the model.
+        tools = scripted_tools(visible(templates), scenario.tool_results, calls)
+    memory = Memory(
+        scenario.memory.get("user", ""), scenario.memory.get("soul", ""), scenario.memory.get("now", "")
+    )
     graph = build_graph(
         chat_model=chat_model,
         tool_model=tool_model,
         decider=decider,
         coverage=coverage,
-        tools=scripted_tools(templates, scenario.tool_results, calls),
+        tools=tools,
         checkpointer=InMemorySaver(),
     )
     turns, checks = [], []
     for i, turn in enumerate(scenario.turns):
         run, start, before = TurnRun(say=turn.say), time.monotonic(), len(calls)
         try:
+            if live_tools is not None:
+                memory = await load_memory(live_tools)  # every turn, as the gateway does
             ctx = RunContext(principal, thread, f"eval-{i}", memory)
             async for event in stream_graph(graph, turn.say, config=config, context=ctx):
                 if event.kind == "final":
@@ -229,7 +306,26 @@ async def run_scenario(
         run.route = state.values.get("route") if state else None
         turns.append(run)
         checks.extend(_check(i, turn.expect, run))
+    if live_tools is not None:
+        checks.extend(await _check_state(len(scenario.turns) - 1, scenario.after, live_tools))
     return Run(scenario.name, turns, checks)
+
+
+def principal_for(scenario: Scenario) -> Principal:
+    """A live run's user is new each time: it starts with nothing remembered and leaves real people alone."""
+    name = scenario.user.name
+    if scenario.live:
+        name = f"eval-{name}-{uuid.uuid4().hex[:8]}"
+    return Principal(name, frozenset(scenario.user.groups), "human")
+
+
+CATEGORIES = ("route", "calls", "args", "reply", "state")
+
+
+def outcome(run: Run, category: str) -> bool | None:
+    """Whether every check of this category passed; None when the run had none."""
+    checks = [c.ok for c in run.checks if c.category == category]
+    return all(checks) if checks else None
 
 
 def summarise(runs: list[Run]) -> list[dict]:
@@ -245,13 +341,9 @@ def summarise(runs: list[Run]) -> list[dict]:
         secs = sorted(row.pop("_secs"))
         n = len(runs_)
         row["pass"] = f"{sum(r.passed for r in runs_)}/{n}"
-        for cat in ("route", "calls", "args", "reply"):
-            relevant = [r for r in runs_ if any(c.category == cat for c in r.checks)]
-            if relevant:
-                ok = sum(all(c.ok for c in r.checks if c.category == cat) for r in relevant)
-                row[cat] = f"{ok}/{len(relevant)}"
-            else:
-                row[cat] = "-"
+        for cat in CATEGORIES:
+            relevant = [ok for r in runs_ if (ok := outcome(r, cat)) is not None]
+            row[cat] = f"{sum(relevant)}/{len(relevant)}" if relevant else "-"
         row["p50_s"] = round(secs[len(secs) // 2], 1) if secs else None
         out.append(row)
     return out

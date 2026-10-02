@@ -1,0 +1,64 @@
+# Live 2026-09-29: the model had no date and drafted 2023; then it read 20:00 Toronto (00:00Z the next day)
+# as "tomorrow"; then a bare "y" went unanswered by any tool.
+name: schedule_evening_one_off
+tags:
+- schedule
+user:
+  name: kid
+  groups:
+  - family
+memory:
+  now: Tue 29 Sep 2026, 19:06 (America/Toronto)
+tool_results:
+  draft_schedule:
+  - result:
+      draft_id: s1
+      title: Formula 1 evening digest
+      prompt: Give me a digest of today's Formula 1 news with links.
+      when: once, on Tuesday 29 September 2026 at 20:00 (Toronto time)
+      next_runs:
+      - Tue 29 Sep 2026, 20:00
+      tools:
+      - web_search
+      tz: America/Toronto
+      next: Nothing is scheduled yet. Show the person what will run and when, and call create_schedule with
+        this draft_id only after they say yes. If they want a change, draft again.
+  create_schedule:
+  - when:
+      draft_id: s1
+    result:
+      created: true
+      schedule_id: 9
+      title: Formula 1 evening digest
+      when: once, on Tuesday 29 September 2026 at 20:00 (Toronto time)
+      status: active
+      next_run_at_local: Tue 29 Sep 2026, 20:00
+  - error: 'no such draft (it may have expired): call draft_schedule again and show the new draft'
+turns:
+- say: Tonight at 8pm, send me a digest of today's Formula 1 news.
+  expect:
+    route: tools
+    calls:
+    - draft_schedule
+    not_calls:
+    - create_schedule
+    args:
+      draft_schedule:
+        frequency: once
+        date: '2026-09-29'
+        time:
+          matches: ^20:00
+    reply:
+      matches: (20:00|8 ?pm)
+      not_contains:
+      - tomorrow
+      - 30 Sep
+      - is scheduled
+- say: y
+  expect:
+    route: tools
+    calls:
+    - create_schedule
+    args:
+      create_schedule:
+        draft_id: s1

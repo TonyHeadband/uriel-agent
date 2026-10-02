@@ -63,13 +63,13 @@ class ServiceKeys:
 
 
 class JwtVerifier:
-    def __init__(self, issuer: str, audience: str, jwks_client: Any):
+    def __init__(self, issuer: str, audience: str | list[str], jwks_client: Any):
         self._issuer = issuer
         self._audience = audience
         self._jwks = jwks_client
 
     @classmethod
-    def for_issuer(cls, issuer: str, audience: str) -> "JwtVerifier":
+    def for_issuer(cls, issuer: str, audience: str | list[str]) -> "JwtVerifier":
         return cls(issuer, audience, jwt.PyJWKClient(f"{issuer}/jwks.json", cache_keys=True, lifespan=300))
 
     def verify(self, token: str) -> Principal:

@@ -1,0 +1,21 @@
+# Evals only: the middle tier, qwen3:14b on the workstation's RTX 4080. Same family, template and params as
+# Homelab's qwen3:8b, so a gap between the two is model size alone. Local ollama runs OLLAMA_CONTEXT_LENGTH=8192
+# to match Homelab.
+models:
+  qwen3-14b:
+    provider: openai_compat
+    base_url: http://localhost:11434/v1
+    model: qwen3:14b
+    params:
+      temperature: 0.3
+      reasoning_effort: none
+  qwen3-14b-tools:
+    provider: openai_compat
+    base_url: http://localhost:11434/v1
+    model: qwen3:14b
+    params:
+      temperature: 0.3
+      reasoning_effort: low
+roles: { interactive: qwen3-14b, background: qwen3-14b, tools: qwen3-14b-tools }
+deciders:
+  route: { adapter: llm, model: qwen3-14b, min_confidence: 0.6 }

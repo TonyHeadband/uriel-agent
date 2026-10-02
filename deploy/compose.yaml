@@ -8,11 +8,15 @@ x-tools-env: &tools-env
   URIEL_SOURCES_FILE: ${URIEL_SOURCES_FILE:-/app/config/sources.yaml}
   URIEL_NC_URL: https://cloud.example.com
   URIEL_NC_PUBLIC_URL: https://cloud.example.com
+  # A local stack must never write Uriel's calendars into the real Nextcloud (uriel-tools 0.8.0 mirror).
+  URIEL_MIRROR_ENABLED: ${URIEL_MIRROR_ENABLED:-false}
+  # web_search (uriel-tools 0.8.0); the cluster uses the in-cluster service instead.
+  URIEL_SEARXNG_URL: https://searxng.example.com
 
 x-tools: &tools
   # The tool server lives in the uriel-tools repo; pin the release this agent was tested against.
   # For a local build: see docs/development.md.
-  image: ${URIEL_TOOLS_IMAGE:-git.example.com/anthony-headband/uriel-tools:0.7.0}
+  image: ${URIEL_TOOLS_IMAGE:-git.example.com/anthony-headband/uriel-tools:0.11.0}
   # The uriel account's app password (URIEL_NC_APP_PASSWORD) comes from .env.
   env_file: [{ path: ../.env, required: false }]
   volumes: ["../config:/app/shared:ro", "../tests/e2e:/e2e:ro"]
@@ -80,6 +84,54 @@ services:
       URIEL_SESSION_SECRET: dev-session-secret-not-for-production-use
       URIEL_COOKIE_SECURE: "false"
       URIEL_PUBLIC_URL: http://localhost:8000
+      # The desktop companion's webview origins (uriel-companion repo; the last one is its Vite dev server).
+      URIEL_CORS_ORIGINS: '["tauri://localhost","http://tauri.localhost","http://localhost:1420"]'
+      URIEL_OIDC_EXTRA_AUDIENCES: ${URIEL_OIDC_EXTRA_AUDIENCES:-[]}
+      # Talk channel and scheduled runs: off unless enabled. The e2e turns them on against fake Talk and a
+      # test lldap (tests/e2e/e2e.env). Never enable them against the real Nextcloud while the cluster's
+      # gateway polls it: both would answer every message.
+      URIEL_TALK_ENABLED: ${URIEL_TALK_ENABLED:-false}
+      URIEL_RUNNER_ENABLED: ${URIEL_RUNNER_ENABLED:-false}
+      URIEL_TALK_POLL_SECONDS: ${URIEL_TALK_POLL_SECONDS:-3}
+      URIEL_RUNNER_SECONDS: ${URIEL_RUNNER_SECONDS:-30}
+      URIEL_NC_URL: ${URIEL_NC_URL:-https://cloud.example.com}
+      URIEL_NC_APP_PASSWORD: ${URIEL_NC_APP_PASSWORD:-}
+      URIEL_LDAP_URL: ${URIEL_LDAP_URL:-}
+      URIEL_LDAP_BIND_DN: ${URIEL_LDAP_BIND_DN:-}
+      URIEL_LDAP_PASSWORD: ${URIEL_LDAP_PASSWORD:-}
+      URIEL_LDAP_BASE_DN: ${URIEL_LDAP_BASE_DN:-}
+
+  # Eval and test results with their Grafana dashboards, on this machine only: `--profile results`, then
+  # `python -m evals.publish --migrate` and the backfill (docs/development.md). Homelab's Grafana shows the
+  # same dashboards from deploy/grafana/.
+  results-db:
+    image: postgres:17.11
+    profiles: [results]
+    environment: { POSTGRES_USER: results, POSTGRES_PASSWORD: results, POSTGRES_DB: results }
+    ports: ["127.0.0.1:55444:5432"]
+    volumes: ["results-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U results"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  results-grafana:
+    image: grafana/grafana:13.2.2
+    profiles: [results]
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      URIEL_RESULTS_HOST: results-db:5432
+      URIEL_RESULTS_READER_USER: results
+      URIEL_RESULTS_READER_PASSWORD: results
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards-uriel/uriel-evals.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards-uriel:ro
+    depends_on: { results-db: { condition: service_healthy } }
 
   mock-oidc:
     image: ghcr.io/navikt/mock-oauth2-server:2.2.1
@@ -93,3 +145,26 @@ services:
     profiles: [e2e]
     volumes: ["../tests/e2e:/e2e:ro"]
     command: ["uvicorn", "stub_llm:app", "--app-dir", "/e2e", "--host", "0.0.0.0", "--port", "9000"]
+
+  fake-talk:
+    build: { context: .., dockerfile: deploy/Dockerfile, target: base }
+    profiles: [e2e]
+    ports: ["9100:9100"]
+    volumes: ["../tests:/app/tests:ro"]
+    environment: { FAKE_TALK_PASSWORD: e2e-talk-password }
+    command: ["uvicorn", "--factory", "tests.fake_talk:e2e_app", "--host", "0.0.0.0", "--port", "9100"]
+
+  # The lldap version Authelia uses on Homelab, seeded by /app/bootstrap.sh after `up` (docs/development.md).
+  lldap:
+    image: lldap/lldap:v0.6.3
+    profiles: [e2e]
+    environment:
+      LLDAP_LDAP_BASE_DN: dc=homelab-station,dc=com
+      LLDAP_LDAP_USER_PASS: e2e-ldap-admin-password
+      LLDAP_ADMIN_PASSWORD: e2e-ldap-admin-password
+      LLDAP_JWT_SECRET: e2e-jwt-secret-not-for-production
+      LLDAP_KEY_SEED: e2e-key-seed-not-for-production
+    volumes: ["../tests/e2e/lldap:/bootstrap:ro"]
+
+volumes:
+  results-data:

@@ -1,0 +1,35 @@
+name: live_memory_forget_birthday
+tags:
+- memory
+live: true
+user:
+  name: kid
+  groups:
+  - family
+setup:
+- tool: remember
+  args:
+    file: user
+    section: Birthday
+    note: 12 March
+- tool: remember
+  args:
+    file: user
+    section: Music
+    note: Jazz
+turns:
+- say: Forget my birthday.
+  expect:
+    calls:
+    - forget
+    not_calls:
+    - remember
+after:
+- tool: show_memory
+  args:
+    file: user
+  expect:
+    contains:
+    - jazz
+    not_contains:
+    - 12 march

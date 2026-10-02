@@ -1,0 +1,62 @@
+name: calendar_move_needs_yes
+tags:
+- calendar
+user:
+  name: kid
+  groups:
+  - family
+memory:
+  now: Tue 29 Sep 2026, 19:06 (America/Toronto)
+tool_results:
+  calendar_agenda:
+  - result:
+      from: Tue 29 Sep 2026
+      to: Wed 30 Sep 2026
+      tz: America/Toronto
+      items:
+      - item_id: e7
+        kind: event
+        title: Dentist
+        calendar: Personal
+        when: Wed 30 Sep 2026, 15:00–16:00
+        recurring: false
+  draft_calendar_change:
+  - result:
+      draft_id: d1
+      change: 'Move "Dentist" on Personal from Wed 30 Sep 2026, 15:00–16:00 to Wed 30 Sep 2026, 16:00–17:00'
+      next: Nothing has changed yet. Show the person this change and call confirm_calendar_change with this
+        draft_id only after they say yes. If they want something different, draft again.
+  confirm_calendar_change:
+  - when:
+      draft_id: d1
+    result:
+      moved: true
+      title: Dentist
+      calendar: Personal
+      change: 'Move "Dentist" on Personal from Wed 30 Sep 2026, 15:00–16:00 to Wed 30 Sep 2026,
+        16:00–17:00'
+  - error: 'no such draft (it may have expired): draft the change again and show it'
+turns:
+- say: What's on my calendar tomorrow?
+  expect:
+    calls:
+    - calendar_agenda
+- say: Move the dentist to 4pm.
+  expect:
+    calls:
+    - draft_calendar_change
+    not_calls:
+    - confirm_calendar_change
+    args:
+      draft_calendar_change:
+        action: move
+        item_id: e7
+        start:
+          matches: (^|T)16:00
+- say: Yes.
+  expect:
+    calls:
+    - confirm_calendar_change
+    args:
+      confirm_calendar_change:
+        draft_id: d1

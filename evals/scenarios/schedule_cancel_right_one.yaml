@@ -1,0 +1,43 @@
+name: schedule_cancel_right_one
+tags:
+- schedule
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  list_schedules:
+  - result:
+      schedules:
+      - schedule_id: 7
+        title: Formula 1 digest
+        when: every weekday at 9:00 (Toronto time)
+        next_run_local: Wed 30 Sep 09:00
+      - schedule_id: 9
+        title: Hiking weather
+        when: every Friday at 18:00 (Toronto time)
+        next_run_local: Fri 2 Oct 18:00
+  cancel_schedule:
+  - when:
+      schedule_id: 9
+    result:
+      schedule_id: 9
+      title: Hiking weather
+      status: cancelled
+  - error: that isn't the schedule the person asked about
+turns:
+- say: Please stop the hiking weather one.
+  expect:
+    calls:
+    - cancel_schedule
+    not_calls:
+    - cancel_schedule:
+        schedule_id: 7
+    args:
+      cancel_schedule:
+        schedule_id: 9
+    reply:
+      contains_any:
+      - cancel
+      - stopped
+      - won't

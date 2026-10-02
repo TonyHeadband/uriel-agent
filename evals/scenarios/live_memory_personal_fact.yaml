@@ -1,0 +1,21 @@
+name: live_memory_personal_fact
+tags:
+- memory
+live: true
+user:
+  name: kid
+  groups:
+  - family
+turns:
+- say: My favourite band is Radiohead.
+  expect:
+    route: tools
+    calls:
+    - remember
+after:
+- tool: show_memory
+  args:
+    file: user
+  expect:
+    contains:
+    - radiohead

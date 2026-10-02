@@ -19,6 +19,7 @@ This repo holds the gateway and the agent. The tools live in a separate MCP serv
 │           or X-API-Key → Principal(user, groups) │
 │ web/      htmx page: GET / , POST /chat (SSE)    │
 │ api/      POST /v1/chat  (JSON, for agents)      │
+│           POST /v1/chat/stream (SSE, desktop app)│
 │ agent/    LangGraph graph, no FastAPI imports    │
 │   route ─► Decider ─► respond | agent⇄tools      │
 └───────┬───────────────────────┬──────────────────┘

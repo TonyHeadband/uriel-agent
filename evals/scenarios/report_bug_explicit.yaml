@@ -37,7 +37,7 @@ turns:
     - draft_issue
     not_calls:
     - file_issue
-    - sign_document
+    - place_signature
     - fill_form
     - edit_text
     args:

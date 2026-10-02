@@ -76,3 +76,24 @@ class ConversationStore:
                 (user_id, limit),
             )
             return await cur.fetchall()
+
+
+class TalkCursors:
+    def __init__(self, pool: AsyncConnectionPool):
+        self._pool = pool
+
+    async def load(self) -> dict[str, int]:
+        async with self._pool.connection() as conn:
+            rows = await (
+                await conn.execute("SELECT room_token, last_message_id FROM talk_cursors")
+            ).fetchall()
+            return {r["room_token"]: r["last_message_id"] for r in rows}
+
+    async def advance(self, token: str, message_id: int) -> None:
+        async with self._pool.connection() as conn:
+            await conn.execute(
+                "INSERT INTO talk_cursors (room_token, last_message_id) VALUES (%s, %s) "
+                "ON CONFLICT (room_token) DO UPDATE SET updated_at = now(), "
+                "last_message_id = GREATEST(talk_cursors.last_message_id, EXCLUDED.last_message_id)",
+                (token, message_id),
+            )

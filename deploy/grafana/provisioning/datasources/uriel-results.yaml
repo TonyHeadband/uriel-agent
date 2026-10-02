@@ -1,0 +1,15 @@
+# The results database (evals/results.sql). The same file provisions Homelab's Grafana, with the
+# grafana_reader role; the variables come from the container's environment.
+apiVersion: 1
+datasources:
+  - name: Uriel results
+    uid: uriel-results
+    type: grafana-postgresql-datasource
+    url: ${URIEL_RESULTS_HOST}
+    user: ${URIEL_RESULTS_READER_USER}
+    secureJsonData:
+      password: ${URIEL_RESULTS_READER_PASSWORD}
+    jsonData:
+      database: results
+      sslmode: disable
+      postgresVersion: 1700

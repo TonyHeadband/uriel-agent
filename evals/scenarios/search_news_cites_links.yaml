@@ -1,0 +1,37 @@
+name: search_news_cites_links
+tags:
+- search
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  web_search:
+  - result:
+      query: Artemis program news
+      results:
+      - title: NASA sets a new date for Artemis III
+        url: https://www.nasa.gov/news/artemis-iii-new-date
+        snippet: NASA announced the crewed lunar landing will target late 2027.
+        engine: bing
+        published: '2026-09-27T14:00:00Z'
+      - title: Artemis II crew completes final training
+        url: https://www.esa.int/artemis-ii-training
+        snippet: The four astronauts finished their last simulation this week.
+        engine: duckduckgo
+        published: '2026-09-25T09:00:00Z'
+turns:
+- say: What's the latest news about the Artemis program?
+  expect:
+    route: tools
+    calls:
+    - web_search
+    args:
+      web_search:
+        query:
+          contains:
+          - artemis
+    reply:
+      contains_any:
+      - nasa.gov/news/artemis-iii-new-date
+      - esa.int/artemis-ii-training

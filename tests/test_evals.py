@@ -60,7 +60,7 @@ REPORT = Scenario.model_validate(
                 "expect": {
                     "route": "tools",
                     "calls": ["report_issue"],
-                    "not_calls": ["sign_document", {"report_issue": {"confirmed": True}}],
+                    "not_calls": ["place_signature", {"report_issue": {"confirmed": True}}],
                     "args": {
                         "report_issue": {"kind": "bug", "description": {"not_contains": ["tell anthony"]}}
                     },
@@ -104,10 +104,10 @@ async def test_scripted_tools_record_calls_and_pick_results_by_args():
 
 async def test_unscripted_tool_is_an_error_result():
     calls = []
-    [tool] = scripted_tools([template("sign_document")], {}, calls)
+    [tool] = scripted_tools([template("place_signature")], {}, calls)
     with pytest.raises(Exception, match="not scripted"):
         await tool.ainvoke({"title": "t", "kind": "bug", "description": "d"})
-    assert calls[0]["name"] == "sign_document"
+    assert calls[0]["name"] == "place_signature"
 
 
 async def test_a_good_run_passes_every_check():
@@ -287,6 +287,7 @@ async def test_memory_reaches_the_prompt_and_its_loader_stays_hidden():
     )
     model = Recording(messages=iter([AIMessage("You're Sir.")]))
     templates = [template("remember"), template("memory_context")]
+    templates[1].metadata = {"_meta": {"uriel": {"hidden": True}}}
     run = await run_scenario(scenario, chat_model=model, decider=FixedDecider("tools"), templates=templates)
     assert run.passed, run.failures()
     assert "- Sir" in seen["system"]
@@ -344,6 +345,34 @@ def test_scenarios_are_selected_by_tag_or_name():
     assert both == {s.name for s in memory} | {"small_talk"}
 
 
+async def test_hidden_tools_are_not_offered_to_the_model():
+    from tests.fakes import HIDDEN, RecordingChatModel
+
+    scenario = Scenario.model_validate(
+        {"name": "hidden", "user": {"name": "kid", "groups": ["family"]}, "turns": [{"say": "hi"}]}
+    )
+    hidden = template("claim_due_runs")
+    hidden.metadata = HIDDEN
+    model = RecordingChatModel(messages=iter([AIMessage("Hi.")]))
+    await run_scenario(
+        scenario, chat_model=model, decider=FixedDecider("tools"), templates=[template("remember"), hidden]
+    )
+    assert model.bound == [["remember"]]
+
+
+def test_schedule_and_search_have_scenarios():
+    from evals.run import load_scenarios
+
+    assert len(load_scenarios([], tags=["schedule"])) == 6
+    assert len(load_scenarios([], tags=["search"])) == 3
+
+
+def test_calendar_has_scenarios():
+    from evals.run import load_scenarios
+
+    assert len(load_scenarios([], tags=["calendar"])) == 5
+
+
 def test_scripted_tools_keep_the_templates_category():
     template = StructuredTool.from_function(
         lambda: "", name="remember", description="r", metadata={"_meta": {"uriel": {"category": "memory"}}}
@@ -391,3 +420,120 @@ def test_a_failed_decision_falls_back_to_every_category():
     stats = pool_stats([failed], CATEGORIES, 0.9)
     assert stats.recall == 1
     assert stats.mean_pool == 5
+
+
+def fake_uriel_tools():
+    """A stand-in for a real uriel-tools session: remember writes, show_memory and memory_context read."""
+    notes: list[str] = []
+
+    async def remember(file: str, section: str, note: str):
+        notes.append(f"## {section}\n- {note}")
+        return json.dumps({"status": "saved"})
+
+    async def show_memory(file: str):
+        return json.dumps({"file": "USER.md", "markdown": "\n".join(notes)})
+
+    async def memory_context():
+        return json.dumps(
+            {"user": "\n".join(notes), "soul": "", "now_local": "Thu 1 Oct 2026, 09:00", "tz": "UTC"}
+        )
+
+    tools = [
+        StructuredTool.from_function(coroutine=remember, name="remember", description="r"),
+        StructuredTool.from_function(coroutine=show_memory, name="show_memory", description="s"),
+        StructuredTool.from_function(
+            coroutine=memory_context,
+            name="memory_context",
+            description="m",
+            metadata={"_meta": {"uriel": {"hidden": True}}},
+        ),
+    ]
+    return tools, notes
+
+
+LIVE = Scenario.model_validate(
+    {
+        "name": "live_recall",
+        "live": True,
+        "user": {"name": "kid", "groups": ["family"]},
+        "setup": [{"tool": "remember", "args": {"file": "user", "section": "Music", "note": "Jazz"}}],
+        "turns": [
+            {"say": "Call me Sir", "expect": {"calls": ["remember"]}},
+            {"say": "What music do I like?", "expect": {"no_calls": True, "reply": {"contains": ["jazz"]}}},
+        ],
+        "after": [{"tool": "show_memory", "args": {"file": "user"}, "expect": {"contains": ["sir", "jazz"]}}],
+    }
+)
+
+
+async def test_a_live_run_seeds_calls_the_real_tools_and_checks_what_they_kept():
+    seen = []
+
+    class Recording(ScriptedChatModel):
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            seen.append(messages[0].content)
+            return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+    model = Recording(
+        messages=iter(
+            [
+                call("remember", {"file": "user", "section": "Name", "note": "Sir"}),
+                AIMessage("Noted, Sir."),
+                AIMessage("Jazz, Sir."),
+            ]
+        )
+    )
+    tools, notes = fake_uriel_tools()
+    run = await run_scenario(
+        LIVE, chat_model=model, decider=FixedDecider("tools"), templates=[], live_tools=tools
+    )
+    assert run.passed, run.failures()
+    assert notes == ["## Music\n- Jazz", "## Name\n- Sir"]
+    assert [c["name"] for c in run.turns[0].calls] == ["remember"]  # setup isn't the agent's call
+    assert "- Sir" in seen[-1]  # memory is reloaded each turn, so turn 2 knows what turn 1 saved
+    assert [c.category for c in run.checks if c.category == "state"] == ["state"]
+
+
+async def test_a_live_state_check_fails_on_what_was_not_kept():
+    model = ScriptedChatModel(messages=iter([AIMessage("Sure, Sir."), AIMessage("Jazz.")]))
+    tools, _ = fake_uriel_tools()
+    run = await run_scenario(
+        LIVE, chat_model=model, decider=FixedDecider("tools"), templates=[], live_tools=tools
+    )
+    failed = [f for f in run.failures()]
+    assert failed == ["turn 1 calls: remember not called", "turn 2 state: show_memory lacks 'sir'"]
+
+
+async def test_a_state_check_on_an_unlisted_tool_fails_instead_of_raising():
+    scenario = Scenario.model_validate(
+        LIVE.model_dump()
+        | {"setup": [], "turns": [], "after": [{"tool": "forget", "expect": {"contains": ["x"]}}]}
+    )
+    tools, _ = fake_uriel_tools()
+    run = await run_scenario(
+        scenario,
+        chat_model=ScriptedChatModel(messages=iter([])),
+        decider=FixedDecider("tools"),
+        templates=[],
+        live_tools=tools,
+    )
+    [check] = run.checks
+    assert not check.ok and "doesn't list forget" in check.detail
+
+
+def test_live_and_scripted_scenarios_do_not_mix():
+    from pydantic import ValidationError
+
+    from evals.harness import principal_for
+    from evals.run import load_scenarios
+
+    with pytest.raises(ValidationError, match="use setup"):
+        Scenario.model_validate(LIVE.model_dump() | {"memory": {"user": "x"}})
+    with pytest.raises(ValidationError, match="need a live scenario"):
+        Scenario.model_validate(LIVE.model_dump() | {"live": False})
+    live = load_scenarios([], tags=["memory"], live=True)
+    assert len(live) == 5 and all(s.live for s in live)
+    assert not any(s.live for s in load_scenarios([]))
+    first, second = principal_for(LIVE), principal_for(LIVE)
+    assert first.user_id.startswith("eval-kid-") and first.user_id != second.user_id
+    assert principal_for(REPORT).user_id == "kid"

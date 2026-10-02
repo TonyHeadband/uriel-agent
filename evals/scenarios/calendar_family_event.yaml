@@ -1,0 +1,55 @@
+name: calendar_family_event
+tags:
+- calendar
+user:
+  name: kid
+  groups:
+  - family
+memory:
+  now: Tue 29 Sep 2026, 19:06 (America/Toronto)
+tool_results:
+  add_event:
+  - result:
+      draft_id: d2
+      change: 'Add "Lil-B''s recital" to Family, Fri 2 Oct 2026, 19:00–20:00'
+      next: Nothing has changed yet. Show the person this change and call confirm_calendar_change with this
+        draft_id only after they say yes. If they want something different, draft again.
+  confirm_calendar_change:
+  - when:
+      draft_id: d2
+    result:
+      added: event
+      title: Lil-B's recital
+      calendar: Family
+      when: Fri 2 Oct 2026, 19:00–20:00
+      item_id: e9
+      note: Tell the person what you added, where and when; offer to undo it (draft_calendar_change,
+        delete).
+  - error: 'no such draft (it may have expired): draft the change again and show it'
+turns:
+- say: Put Lil-B's recital on the family calendar Friday 7 to 8pm.
+  expect:
+    route: tools
+    calls:
+    - add_event
+    not_calls:
+    - confirm_calendar_change
+    args:
+      add_event:
+        calendar:
+          matches: (?i)family
+        date: '2026-10-02'
+        start:
+          matches: ^19:00
+    reply:
+      not_contains:
+      - is on the calendar
+      - i've added
+      - have added
+- say: Yes.
+  expect:
+    calls:
+    - confirm_calendar_change
+    args:
+      confirm_calendar_change:
+        draft_id: d2

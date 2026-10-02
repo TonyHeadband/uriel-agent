@@ -119,6 +119,11 @@ class GatewaySettings(BaseSettings):
     # Authelia's own portal logout endpoint (Task 12 sets it after checking Authelia 4.39's path);
     # left unset, the "sign out of all family services" link is simply not shown.
     oidc_logout_url: str | None = None
+    # Extra JWT audiences, for the desktop companion's own OIDC client
+    # (docs/specs/2026-09-30-companion-app-design.md).
+    oidc_extra_audiences: list[str] = []
+    # Origins allowed to call /v1 from a webview; the companion is tauri://localhost or http://tauri.localhost.
+    cors_origins: list[str] = []
     session_secret: str = Field(min_length=32)
     public_url: str
     cookie_secure: bool = True
@@ -126,3 +131,29 @@ class GatewaySettings(BaseSettings):
     decisions_retention_days: int = 180
     max_message_chars: int = 8000
     recursion_limit: int = 10
+
+    # Talk channel and scheduled runs (docs/specs/2026-09-29-coworker-talk-scheduler-design.md).
+    nc_url: str | None = None
+    nc_app_password: str | None = None
+    talk_enabled: bool = False
+    talk_poll_seconds: float = Field(default=3.0, gt=0)
+    talk_history_turns: int = Field(default=20, ge=1)
+    ldap_url: str | None = None
+    ldap_bind_dn: str | None = None
+    ldap_password: str | None = None
+    ldap_base_dn: str | None = None
+    runner_enabled: bool = False
+    runner_seconds: float = Field(default=30.0, gt=0)
+    # Talk turns and scheduled runs are for people in at least one of these lldap groups, not anyone in lldap.
+    member_groups: list[str] = Field(default_factory=lambda: ["family"], min_length=1)
+
+    @model_validator(mode="after")
+    def _coworker_needs_nextcloud_and_lldap(self) -> "GatewaySettings":
+        if not (self.talk_enabled or self.runner_enabled):
+            return self
+        needed = ("nc_url", "nc_app_password", "ldap_url", "ldap_bind_dn", "ldap_password", "ldap_base_dn")
+        # Compose passes an unset variable as an empty string, so empty counts as missing.
+        missing = [f"URIEL_{name.upper()}" for name in needed if not getattr(self, name)]
+        if missing:
+            raise ValueError(f"Talk and scheduled runs need {', '.join(missing)}")
+        return self

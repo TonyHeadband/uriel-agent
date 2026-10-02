@@ -1,0 +1,72 @@
+name: schedule_change_before_yes
+tags:
+- schedule
+user:
+  name: kid
+  groups:
+  - family
+tool_results:
+  draft_schedule:
+  - once: true
+    result:
+      draft_id: s1
+      title: Formula 1 digest
+      prompt: Give me a digest of Formula 1 news with links.
+      when: every weekday at 9:00 (Toronto time)
+      next_runs:
+      - Wed 30 Sep 09:00
+      tools:
+      - web_search
+      tz: America/Toronto
+      next: Nothing is scheduled yet. Show the person the draft and call create_schedule with this draft_id
+        only after they say yes.
+  - result:
+      draft_id: s2
+      title: Formula 1 digest
+      prompt: Give me a digest of Formula 1 news with links.
+      when: every weekday at 8:00 (Toronto time)
+      next_runs:
+      - Wed 30 Sep 08:00
+      tools:
+      - web_search
+      tz: America/Toronto
+      next: Nothing is scheduled yet. Show the person the draft and call create_schedule with this draft_id
+        only after they say yes.
+  create_schedule:
+  - when:
+      draft_id: s2
+    result:
+      schedule_id: 8
+      status: active
+      when: every weekday at 8:00 (Toronto time)
+  - error: that draft was replaced; use the latest draft_id
+turns:
+- say: Every weekday at 9, send me a digest of Formula 1 news.
+  expect:
+    calls:
+    - draft_schedule
+    not_calls:
+    - create_schedule
+- say: No, make it 8.
+  expect:
+    calls:
+    - draft_schedule
+    not_calls:
+    - create_schedule
+    args:
+      draft_schedule:
+        time:
+          matches: ^0?8:00
+    reply:
+      contains:
+      - '8:00'
+- say: Yes, that's good.
+  expect:
+    calls:
+    - create_schedule
+    not_calls:
+    - create_schedule:
+        draft_id: s1
+    args:
+      create_schedule:
+        draft_id: s2

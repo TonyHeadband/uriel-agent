@@ -1,6 +1,8 @@
+import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Collection, Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
+from typing import Any
 
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -12,6 +14,7 @@ from uriel.principal import Principal
 
 log = logging.getLogger(__name__)
 SERVER = "core"
+MEMORY_TOOL = "memory_context"
 
 
 class McpToolbox:
@@ -51,3 +54,43 @@ class McpToolbox:
         except Exception:  # includes ExceptionGroup from the anyio transport
             log.warning("MCP unavailable; continuing without tools", exc_info=True)
             return None
+
+
+def uriel_meta(tool: BaseTool) -> dict[str, Any]:
+    """The tool's `_meta.uriel` from uriel-tools (category, hidden, unattended); langchain-mcp-adapters keeps
+    the MCP `_meta` in the tool's metadata."""
+    meta = (tool.metadata or {}).get("_meta")
+    flags = meta.get("uriel") if isinstance(meta, dict) else None
+    return flags if isinstance(flags, dict) else {}
+
+
+def is_hidden(tool: BaseTool) -> bool:
+    return bool(uriel_meta(tool).get("hidden", False))
+
+
+def is_unattended(tool: BaseTool) -> bool:
+    return bool(uriel_meta(tool).get("unattended", False))
+
+
+def visible(tools: Sequence[BaseTool]) -> list[BaseTool]:
+    """The tools a model may be offered: never one uriel-tools marks hidden, which only the gateway calls."""
+    # uriel-tools before 0.8.0 lists memory_context without the hidden flag, and in a shared Talk room the
+    # model could pull the mentioner's USER.md and SOUL.md into it. The name check can go once every
+    # deployment runs uriel-tools >= 0.8.0.
+    return [t for t in tools if not is_hidden(t) and t.name != MEMORY_TOOL]
+
+
+def unattended(tools: Sequence[BaseTool], wanted: Collection[str]) -> tuple[list[BaseTool], list[str]]:
+    """For a scheduled run: the wanted tools that are listed for this person and marked unattended, and the
+    names of those that aren't."""
+    offered = [t for t in tools if t.name in wanted and is_unattended(t)]
+    missing = sorted(set(wanted) - {t.name for t in offered})
+    return offered, missing
+
+
+async def call_json(tool: BaseTool, args: dict[str, Any]) -> Any:
+    """Call a tool the gateway uses itself and decode its JSON; None when it returned no content."""
+    content = await tool.ainvoke(args)
+    # MCP tools return content blocks (probe 2026-09-28); plain langchain tools return the string.
+    text = content if isinstance(content, str) else "".join(b.get("text", "") for b in content)
+    return json.loads(text) if text.strip() else None

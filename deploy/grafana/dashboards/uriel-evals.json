@@ -16,15 +16,15 @@
   "templating": {
     "list": [
       {
-        "name": "label",
+        "name": "model",
         "label": "Model",
         "type": "query",
         "datasource": {
           "type": "grafana-postgresql-datasource",
           "uid": "uriel-results"
         },
-        "query": "SELECT DISTINCT label FROM runs WHERE kind = 'eval' ORDER BY 1",
-        "definition": "SELECT DISTINCT label FROM runs WHERE kind = 'eval' ORDER BY 1",
+        "query": "SELECT DISTINCT model FROM runs WHERE kind = 'eval' AND model IS NOT NULL ORDER BY 1",
+        "definition": "SELECT DISTINCT model FROM runs WHERE kind = 'eval' AND model IS NOT NULL ORDER BY 1",
         "refresh": 2,
         "multi": true,
         "includeAll": true,
@@ -138,7 +138,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT round(100.0 * avg(e.passed::int), 1) AS \"pass %\" FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring})"
+          "rawSql": "SELECT round(100.0 * avg(e.passed::int), 1) AS \"pass %\" FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring})"
         }
       ],
       "description": "",
@@ -193,7 +193,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT count(*) AS runs, count(*) FILTER (WHERE NOT e.passed) AS failed FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring})"
+          "rawSql": "SELECT count(*) AS runs, count(*) FILTER (WHERE NOT e.passed) AS failed FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring})"
         }
       ],
       "description": "",
@@ -247,7 +247,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT extract(epoch FROM max(r.started_at)) * 1000 AS \"last run\" FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring})"
+          "rawSql": "SELECT extract(epoch FROM max(r.started_at)) * 1000 AS \"last run\" FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring})"
         }
       ],
       "description": "",
@@ -282,7 +282,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT coalesce(sum(cost_usd), 0) AS cost FROM runs r WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring})"
+          "rawSql": "SELECT coalesce(sum(cost_usd), 0) AS cost FROM runs r WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring})"
         }
       ],
       "description": "",
@@ -318,7 +318,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT r.started_at AS time, r.label AS metric, round(100.0 * avg(e.passed::int), 1) AS pass FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT r.started_at AS time, r.model AS metric, round(100.0 * avg(e.passed::int), 1) AS pass FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "description": "Each point is one run of evals.run: the share of scenario runs that passed. Runs cover different areas, so filter by Area to compare like with like.",
@@ -361,7 +361,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT date_trunc('day', r.started_at) AS time, t.tag AS metric, round(100.0 * avg(e.passed::int), 1) AS pass FROM runs r JOIN eval_results e ON e.run_id = r.id CROSS JOIN unnest(e.tags) AS t(tag) WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) AND t.tag IN (${area:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT date_trunc('day', r.started_at) AS time, t.tag AS metric, round(100.0 * avg(e.passed::int), 1) AS pass FROM runs r JOIN eval_results e ON e.run_id = r.id CROSS JOIN unnest(e.tags) AS t(tag) WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) AND t.tag IN (${area:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "description": "",
@@ -404,7 +404,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "WITH ranked AS (\n  SELECT e.scenario, r.label, r.suite, r.started_at, e.passed, e.tags,\n         dense_rank() OVER (PARTITION BY e.scenario, r.label ORDER BY r.started_at DESC) AS rk\n  FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring})\n)\nSELECT scenario, label AS model, suite, array_to_string(min(tags), ', ') AS area,\n       max(started_at) FILTER (WHERE rk = 1) AS \"last run\",\n       sum(passed::int) FILTER (WHERE rk = 1) || '/' || count(*) FILTER (WHERE rk = 1) AS latest,\n       round(100.0 * avg(passed::int) FILTER (WHERE rk = 1)) AS \"latest %\",\n       round(100.0 * avg(passed::int) FILTER (WHERE rk = 2)) AS \"previous %\",\n       round(100.0 * avg(passed::int) FILTER (WHERE rk = 1)) - round(100.0 * avg(passed::int) FILTER (WHERE rk = 2)) AS change\nFROM ranked GROUP BY scenario, label, suite ORDER BY \"latest %\", scenario"
+          "rawSql": "WITH ranked AS (\n  SELECT e.scenario, r.model, r.suite, r.started_at, e.passed, e.tags,\n         dense_rank() OVER (PARTITION BY e.scenario, r.model ORDER BY r.started_at DESC) AS rk\n  FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring})\n)\nSELECT scenario, model, suite, array_to_string(min(tags), ', ') AS area,\n       max(started_at) FILTER (WHERE rk = 1) AS \"last run\",\n       sum(passed::int) FILTER (WHERE rk = 1) || '/' || count(*) FILTER (WHERE rk = 1) AS latest,\n       round(100.0 * avg(passed::int) FILTER (WHERE rk = 1)) AS \"latest %\",\n       round(100.0 * avg(passed::int) FILTER (WHERE rk = 2)) AS \"previous %\",\n       round(100.0 * avg(passed::int) FILTER (WHERE rk = 1)) - round(100.0 * avg(passed::int) FILTER (WHERE rk = 2)) AS change\nFROM ranked GROUP BY scenario, model, suite ORDER BY \"latest %\", scenario"
         }
       ],
       "description": "The newest run of each scenario on each model, and the change from the run before it.",
@@ -420,28 +420,22 @@
               {
                 "id": "custom.cellOptions",
                 "value": {
-                  "type": "color-background"
+                  "type": "color-text"
                 }
               },
               {
-                "id": "thresholds",
+                "id": "color",
                 "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "red",
-                      "value": null
-                    },
-                    {
-                      "color": "orange",
-                      "value": 50
-                    },
-                    {
-                      "color": "green",
-                      "value": 100
-                    }
-                  ]
+                  "mode": "continuous-RdYlGr"
                 }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
               },
               {
                 "id": "unit",
@@ -532,7 +526,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT r.label AS model,\n  round(100.0 * avg(e.route_ok::int)) AS route, round(100.0 * avg(e.calls_ok::int)) AS calls,\n  round(100.0 * avg(e.args_ok::int)) AS args, round(100.0 * avg(e.reply_ok::int)) AS reply,\n  round(100.0 * avg(e.state_ok::int)) AS state\nFROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT r.model,\n  round(100.0 * avg(e.route_ok::int)) AS route, round(100.0 * avg(e.calls_ok::int)) AS calls,\n  round(100.0 * avg(e.args_ok::int)) AS args, round(100.0 * avg(e.reply_ok::int)) AS reply,\n  round(100.0 * avg(e.state_ok::int)) AS state\nFROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) GROUP BY 1 ORDER BY 1"
         }
       ],
       "description": "route: the right path; calls: the right tools; args: their arguments; reply: what was said; state: what a live run left saved.",
@@ -579,7 +573,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT r.started_at AS time, r.label AS metric, round(avg(e.seconds_p50)::numeric, 1) AS seconds FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT r.started_at AS time, r.model AS metric, round(avg(e.seconds_p50)::numeric, 1) AS seconds FROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "description": "",
@@ -620,7 +614,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT r.started_at AS time, e.scenario, r.label AS model, r.suite, e.attempt,\n  array_to_string(e.failures, E'\\n') AS \"failed checks\", e.error,\n  (SELECT string_agg('\u00bb ' || (t->>'say') || E'\\n' || coalesce(t->>'reply', ''), E'\\n') FROM jsonb_array_elements(e.turns) t) AS conversation,\n  left(r.git_sha, 8) AS commit\nFROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.label IN (${label:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) AND NOT e.passed ORDER BY r.started_at DESC, e.scenario LIMIT 300"
+          "rawSql": "SELECT r.started_at AS time, e.scenario, r.model, r.label AS run, r.suite, e.attempt,\n  array_to_string(e.failures, E'\\n') AS \"failed checks\", e.error,\n  (SELECT string_agg('» ' || (t->>'say') || E'\\n' || coalesce(t->>'reply', ''), E'\\n') FROM jsonb_array_elements(e.turns) t) AS conversation,\n  left(r.git_sha, 8) AS commit\nFROM runs r JOIN eval_results e ON e.run_id = r.id WHERE r.kind = 'eval' AND $__timeFilter(r.started_at) AND r.model IN (${model:sqlstring}) AND r.suite IN (${suite:sqlstring}) AND e.tags && ARRAY[${area:sqlstring}]::text[] AND e.scenario IN (${scenario:sqlstring}) AND NOT e.passed ORDER BY r.started_at DESC, e.scenario LIMIT 300"
         }
       ],
       "description": "Every failing scenario run, newest first. Click a cell to read the whole conversation.",

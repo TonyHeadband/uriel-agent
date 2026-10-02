@@ -37,13 +37,18 @@ async def test_an_eval_run_is_stored_once_with_a_flag_per_checked_category(pg_ds
         run("memory_fact", Check(0, "calls", True, ""), Check(0, "state", True, "")),
         run("small_talk", Check(0, "route", False, "tools"), error="TimeoutError: slow"),
     ]
-    info = publish.RunInfo("eval", "live", WHEN, label="qwen3:14b", cost_usd=0.01234, source_key="eval:x")
+    info = publish.RunInfo(
+        "eval", "live", WHEN, label="grp-on-14b", model="qwen3:14b", cost_usd=0.01234, source_key="eval:x"
+    )
     first = publish.publish_evals(pg_dsn, runs, publish.here_and_now(info), {"memory_fact": ["memory"]})
     assert first is not None
     assert publish.publish_evals(pg_dsn, runs, info, {}) is None
 
-    [(source, cost, branch)] = rows(pg_dsn, "SELECT source, cost_usd, branch FROM runs")
+    [(source, cost, branch, label, model)] = rows(
+        pg_dsn, "SELECT source, cost_usd, branch, label, model FROM runs"
+    )
     assert source == "workstation" and float(cost) == 0.0123 and branch
+    assert (label, model) == ("grp-on-14b", "qwen3:14b")
     stored = rows(
         pg_dsn,
         "SELECT scenario, tags, attempt, passed, route_ok, calls_ok, state_ok, failures, error, seconds_p50,"

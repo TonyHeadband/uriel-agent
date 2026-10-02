@@ -55,6 +55,15 @@ async def test_error_falls_back():
     assert (d.choice, d.adapter, d.confidence) == ("tools", "fallback", None)
 
 
+async def test_no_structured_answer_raises_and_falls_back():
+    # langchain-openai parses to None when the model answers with a tool call (gpt-oss:20b, #38).
+    unparsed = ScriptedChatModel(messages=iter([]), structured=[None, None])
+    with pytest.raises(ValueError, match="no structured answer"):
+        await LLMDecider(unparsed, "m").choose("route", "hi", ROUTE_OPTIONS)
+    d = await GuardedDecider(LLMDecider(unparsed, "m"), SPEC, "tools").choose("route", "hi", ROUTE_OPTIONS)
+    assert (d.choice, d.adapter) == ("tools", "fallback")
+
+
 async def test_choice_outside_options_falls_back():
     d = await GuardedDecider(LLMDecider(llm_answering("banana", 0.99), "m"), SPEC, "tools").choose(
         "route", "hi", ROUTE_OPTIONS

@@ -76,6 +76,11 @@ QUESTIONS = {
                 "a short answer to a question the assistant just asked (a profile question, which box to "
                 "sign, what to fill in)",
                 "a problem with Uriel, or something to pass on or report to Anthony",
+                "news, current events or anything that needs up-to-date information from the web",
+                "work the assistant does on a schedule: setting up, listing, changing or cancelling it, "
+                'stopping one by its name, or a message that starts with "Scheduled task"',
+                'the calendar: any reminder ("remind me ..."), event, appointment or task to add, move, '
+                "finish or remove, and what is on the agenda",
             ],
             "direct": [
                 "greetings, thanks and chit-chat",
@@ -90,8 +95,9 @@ QUESTIONS = {
         ),
         "criteria": {
             "none": [
-                "greetings, thanks and chit-chat",
-                "general knowledge, even about a topic a tool covers (what a form is, how servers work)",
+                "greetings, thanks and chit-chat, but not a fact the user tells about themselves",
+                "general knowledge, even about a topic a tool covers (what a form is, how servers work, when "
+                "an album came out)",
             ],
             "documents": [
                 "the family's own documents: a form, questionnaire, contract, bill, receipt, "
@@ -114,6 +120,22 @@ QUESTIONS = {
             ],
             "homelab": ["the homelab, servers, media server or network: whether something is up or down"],
             "camera": ["the door camera or doorbell: who came, what it saw"],
+            # "Remind me" is the calendar's, a recurring job the schedules': #35 looked like one leaking into
+            # the other.
+            "calendar": [
+                'a reminder ("remind me to ..., remind me in 3 minutes"), event, appointment or task: '
+                "adding, moving, finishing or removing one",
+                "what is on the agenda or calendar, today or on a day",
+            ],
+            "schedules": [
+                'work the assistant does for them on a schedule ("every day at 9 tell me ...", "each Monday '
+                'send ..."): setting it up, changing it, what it has run, listing it ("what are you doing '
+                'for me?"), stopping one by its name ("stop the news one", "no more traffic updates")',
+                'a message that starts with "Scheduled task", and their time zone',
+            ],
+            "web": [
+                "news, current events or anything else that changes day to day; not settled facts or history"
+            ],
         },
     },
 }
@@ -159,6 +181,9 @@ class LLMDecider:
         structured = self._llm.with_structured_output(_choice_schema(options), method="json_schema")
         text = INSTRUCTIONS.get(point) or rubric(point, options)
         out = await structured.ainvoke([SystemMessage(text), HumanMessage(context)])
+        if out is None:
+            # langchain-openai parses to None when the reply is a tool call, with no tools bound (#38).
+            raise ValueError(f"{self._model_name} gave no structured answer, likely a tool call instead")
         latency = round((time.perf_counter() - start) * 1000)
         return Decision(point, out.choice, out.confidence, "llm", self._model_name, latency)
 

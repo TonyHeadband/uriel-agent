@@ -114,7 +114,8 @@ class Run:
     scenario: str
     turns: list[TurnRun]
     checks: list[Check]
-    label: str = ""  # which models answered, so runs of different models can be told apart
+    label: str = ""  # the run's name in the report: the model ids unless --label gives one
+    model: str = ""  # which models answered, so runs of different models can be told apart
 
     @property
     def passed(self) -> bool:

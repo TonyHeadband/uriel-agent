@@ -18,7 +18,8 @@ DATA_SLOT = "/*REPORT_DATA*/null"
 def load_run(raw: dict) -> Run:
     fields = TurnRun.__dataclass_fields__
     turns = [TurnRun(**{k: v for k, v in t.items() if k in fields}) for t in raw["turns"]]
-    return Run(raw["scenario"], turns, [Check(**c) for c in raw["checks"]], raw.get("label", ""))
+    checks = [Check(**c) for c in raw["checks"]]
+    return Run(raw["scenario"], turns, checks, raw.get("label", ""), raw.get("model", ""))
 
 
 def build(results: Path) -> dict:

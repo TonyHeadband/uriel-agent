@@ -35,6 +35,7 @@ class RunInfo:
     started_at: datetime
     finished_at: datetime | None = None
     label: str = ""
+    model: str | None = None  # eval only
     tokens_in: int | None = None
     tokens_out: int | None = None
     cost_usd: float | None = None
@@ -163,7 +164,10 @@ def backfill(url: str, files: list[Path]) -> None:
         # Saved files are named for when the run finished, in UTC; they record nothing about the machine.
         when = datetime.strptime(path.stem, "%Y%m%d-%H%M%S").replace(tzinfo=UTC)
         suite = "live" if all(r.scenario.startswith("live_") for r in runs) else "scripted"
-        info = RunInfo("eval", suite, when, when, label=runs[0].label, source_key=f"eval:{path.stem}")
+        model = runs[0].model or None  # runs saved before 2026-10-02 record only a label
+        info = RunInfo(
+            "eval", suite, when, when, label=runs[0].label, model=model, source_key=f"eval:{path.stem}"
+        )
         info.source, info.host = "workstation", socket.gethostname()
         print(f"{path.name}: {'added' if publish_evals(url, runs, info, tags) else 'already there'}")
 

@@ -25,6 +25,9 @@ def test_category_question_describes_exactly_these_categories():
         "reporting",
         "homelab",
         "camera",
+        "calendar",
+        "schedules",
+        "web",
     }
 
 
@@ -77,9 +80,9 @@ def test_old_uriel_tools_without_categories_keeps_every_tool():
 
 
 def test_a_category_the_agent_cannot_describe_is_always_bound():
-    tools = [tool("remember", "memory"), tool("web_search", "web")]
+    tools = [tool("remember", "memory"), tool("open_garage", "garage")]
     assert categories_of(tools) == ["memory"]
-    assert [t.name for t in tools_in(["memory"], tools)] == ["remember", "web_search"]
+    assert [t.name for t in tools_in(["memory"], tools)] == ["remember", "open_garage"]
 
 
 def test_an_undescribed_category_is_warned_about_once(caplog):

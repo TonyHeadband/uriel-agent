@@ -542,7 +542,7 @@ async def test_binary_route_without_coverage_binds_every_tool_in_order():
     assert model.bound_tool_names == [t.name for t in tools]
     (_, _, _, options, pool) = log.rows[0]
     assert options == ["direct", "tools"]
-    assert pool == ["homelab", "memory", "reporting"]
+    assert pool == ["homelab", "memory", "reporting", "web"]
 
 
 def test_clock_lists_the_coming_week_so_the_model_needs_no_weekday_arithmetic():

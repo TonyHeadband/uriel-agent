@@ -26,9 +26,18 @@ from uriel.config import ModelsConfig, load_yaml, models_outside_the_house
 
 HERE = Path(__file__).parent
 THRESHOLDS = (0.0, 0.5, 0.6, 0.7, 0.8, 0.9)
-CATEGORY_OPTIONS = [NONE, "camera", "documents", "homelab", "memory", "reporting"]
 COVERAGES = (0.8, 0.9, 0.95)
-TOOLS_PER_CATEGORY = {"camera": 1, "documents": 7, "homelab": 1, "memory": 6, "reporting": 2}
+TOOLS_PER_CATEGORY = {
+    "calendar": 7,
+    "camera": 1,
+    "documents": 7,
+    "homelab": 1,
+    "memory": 6,
+    "reporting": 2,
+    "schedules": 6,
+    "web": 1,
+}
+CATEGORY_OPTIONS = [NONE, *TOOLS_PER_CATEGORY]
 # The pool always adds reporting for a non-empty pool (pool.ALWAYS), so it costs its tools even unpicked.
 ALWAYS_TOOLS = TOOLS_PER_CATEGORY["reporting"]
 

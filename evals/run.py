@@ -87,7 +87,9 @@ async def main() -> None:
     )
     ap.add_argument("--mcp-url", default=os.environ.get("URIEL_EVAL_MCP_URL", "http://localhost:8011/mcp"))
     ap.add_argument("--mcp-key", default=os.environ.get("URIEL_EVAL_MCP_KEY", "dev-mcp-key"))
-    ap.add_argument("--label", default="", help="name for these runs in the report; default: the model ids")
+    ap.add_argument(
+        "--label", default="", help="name for these runs, e.g. the experiment; default: the model ids"
+    )
     ap.add_argument("--out", default=str(HERE / "results"), help="directory for the JSON of every run")
     args = ap.parse_args()
 
@@ -118,7 +120,8 @@ async def main() -> None:
     chat_model, tool_model = metered(interactive), metered(models.roles.get("tools", interactive))
     toolbox = McpToolbox(args.mcp_url, args.mcp_key)
     used = [models.role("interactive"), models.role("tools"), models.models[route.model]]
-    label = args.label or " + ".join(sorted({m.model for m in used}))
+    model = " + ".join(sorted({m.model for m in used}))
+    label = args.label or model
 
     runs, stopped = [], None
 
@@ -144,7 +147,7 @@ async def main() -> None:
         templates = [] if scenario.live else await templates_for(toolbox, scenario)
         for i in range(args.n):
             run = await once(scenario, templates, i)
-            run.label = label
+            run.label, run.model = label, model
             print(f"{scenario.name} #{i + 1}: {'pass' if run.passed else 'FAIL'}", flush=True)
             runs.append(run)
             if stopped := stop_reason(runs, spent=meter.usd, budget=args.budget_usd):
@@ -174,6 +177,7 @@ async def main() -> None:
             started,
             datetime.now(UTC),
             label=label,
+            model=model,
             tokens_in=sum(t[0] for t in tokens),
             tokens_out=sum(t[1] for t in tokens),
             cost_usd=meter.usd,

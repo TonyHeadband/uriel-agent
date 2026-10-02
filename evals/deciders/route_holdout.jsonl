@@ -38,3 +38,11 @@
 {"id": "general_how_are_you_long", "source": "holdout", "context": "Hey, long day at work, just wanted to say hi before dinner.", "expected": "direct", "expected_category": "none"}
 {"id": "general_opinion", "source": "holdout", "context": "Do you think cats or dogs are better pets?", "expected": "direct", "expected_category": "none"}
 {"id": "general_unit", "source": "holdout", "context": "How many cups is 250 grams of flour?", "expected": "direct", "expected_category": "none"}
+{"id": "remind_in_minutes", "source": "holdout", "context": "remind me in 3 minutes to stretch", "expected": "tools", "expected_category": "calendar"}
+{"id": "agenda_saturday", "source": "holdout", "context": "Do we have anything on Saturday?", "expected": "tools", "expected_category": "calendar"}
+{"id": "finish_task", "source": "holdout", "context": "Mark the groceries task as done.", "expected": "tools", "expected_category": "calendar"}
+{"id": "schedule_traffic_stop", "source": "holdout", "context": "No more traffic updates please.", "expected": "tools", "expected_category": "schedules"}
+{"id": "schedule_monday_weather", "source": "holdout", "context": "Each Monday morning send me the week's weather.", "expected": "tools", "expected_category": "schedules"}
+{"id": "scheduled_task_prefix", "source": "holdout", "context": "Scheduled task: send the daily news digest.", "expected": "tools", "expected_category": "schedules"}
+{"id": "news_election", "source": "holdout", "context": "Who won the election in Brazil yesterday?", "expected": "tools", "expected_category": "web"}
+{"id": "news_storm", "source": "holdout", "context": "Is the storm still heading for the coast today?", "expected": "tools", "expected_category": "web"}

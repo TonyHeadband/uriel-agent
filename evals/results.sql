@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS eval_results (
     turns         jsonb NOT NULL  -- what was said, the calls made and the reply, per turn
 );
 CREATE INDEX IF NOT EXISTS eval_results_run ON eval_results (run_id);
+
+-- eval: the model ids that answered, which the dashboards group by; label stays free text for the experiment.
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS model text;
 CREATE INDEX IF NOT EXISTS eval_results_scenario ON eval_results (scenario);
 
 CREATE TABLE IF NOT EXISTS test_results (

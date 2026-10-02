@@ -42,3 +42,13 @@
 {"id": "general_about_radiohead", "source": "hand", "context": "When did Radiohead release OK Computer?", "expected": "direct", "expected_category": "none"}
 {"id": "general_what_is_jazz", "source": "hand", "context": "What's the difference between bebop and swing?", "expected": "direct", "expected_category": "none"}
 {"id": "general_how_insurance", "source": "hand", "context": "In general, how does car insurance work in Italy?", "expected": "direct", "expected_category": "none"}
+{"id": "calendar_agenda", "source": "scenario:calendar_agenda", "context": "What's on my calendar tomorrow?", "expected": "tools", "expected_category": "calendar"}
+{"id": "calendar_remind_me", "source": "scenario:calendar_remind_me", "context": "Remind me to call the dentist Thursday at 3pm.", "expected": "tools", "expected_category": "calendar"}
+{"id": "calendar_family_event", "source": "scenario:calendar_family_event", "context": "Put Lil-B's recital on the family calendar Friday 7 to 8pm.", "expected": "tools", "expected_category": "calendar"}
+{"id": "calendar_move", "source": "scenario:calendar_move_needs_yes", "context": "Move the dentist to 4pm.", "expected": "tools", "expected_category": "calendar"}
+{"id": "schedule_cancel_by_name", "source": "scenario:schedule_cancel_right_one", "context": "Please stop the hiking weather one.", "expected": "tools", "expected_category": "schedules"}
+{"id": "schedule_draft", "source": "scenario:schedule_draft_then_create", "context": "Every weekday at 9, send me a digest of Formula 1 news.", "expected": "tools", "expected_category": "schedules"}
+{"id": "schedule_list", "source": "scenario:schedule_list", "context": "What are you doing for me these days?", "expected": "tools", "expected_category": "schedules"}
+{"id": "schedule_next_run", "source": "scenario:schedule_local_time", "context": "When will the Formula 1 digest run next?", "expected": "tools", "expected_category": "schedules"}
+{"id": "search_artemis", "source": "scenario:search_news_cites_links", "context": "What's the latest news about the Artemis program?", "expected": "tools", "expected_category": "web"}
+{"id": "search_f1_week", "source": "scenario:search_this_week", "context": "What happened in Formula 1 this week?", "expected": "tools", "expected_category": "web"}

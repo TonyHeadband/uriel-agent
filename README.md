@@ -45,8 +45,15 @@ This repo holds the gateway and the agent. The tools live in a separate MCP serv
 
 `evals/` measures how well the agent picks tools and fills their arguments. It runs the real graph, prompt and router
 against a real model, and answers every tool call from scripted results, so nothing gets filed, edited or signed.
-I judge design changes on a hosted model, then rerun the suite on the local model before each release.
+Design changes are judged on qwen3:14b, the target tier, and compared with qwen3:8b, the smallest model it has
+to work on; a hosted model is an occasional ceiling check. The full suite runs on the local model before each
+release.
 See [docs/development.md](docs/development.md#tool-use-evals-real-model-scripted-tools).
+
+Every eval run and pytest session is published to a results database. Grafana shows pass rates per model,
+area and scenario over time:
+
+![Grafana: eval pass rates per model and the latest result per scenario](docs/images/grafana-evals.png)
 
 ## Design docs
 
